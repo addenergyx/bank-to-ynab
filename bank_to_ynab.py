@@ -78,7 +78,7 @@ def send_email(msg: str, error_code):
 def job():
     today = date.today()
     first = today.replace(day=1)
-    lastMonth = first - timedelta(days=1)
+    lastMonth = first - timedelta(days=14)
     for p in data['banks']:
         account_id = p['ynab_account_id']
         #print(p['access_token'])
