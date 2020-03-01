@@ -16,7 +16,7 @@ import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-with open('/home/pi/bank-to-ynab/dev_bank_tokens.json') as json_file:
+with open('/home/pi/bank-to-ynab/bank_tokens.json') as json_file:
     data = json.load(json_file)
 
 from plaid import Client as PlaidClient
@@ -56,7 +56,6 @@ def cleanup_transactions(transactions: list, account):
 def send_email(msg: str, error_code):
     sender_email = os.getenv('GMAIL')
     receiver_email = os.getenv('MY_EMAIL')
-    #password = 'QN%z97QLf'
 
     message = MIMEMultipart("alternative")
     message["Subject"] = "YNAB Script Issue: [%s]" % error_code
