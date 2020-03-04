@@ -16,7 +16,9 @@ import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-with open('/home/pi/bank-to-ynab/bank_tokens.json') as json_file:
+PLAID_BANK_TOKENS = os.getenv('PLAID_BANK_TOKENS')
+
+with open(PLAID_BANK_TOKENS) as json_file:
     data = json.load(json_file)
 
 from plaid import Client as PlaidClient
