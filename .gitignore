@@ -1,3 +1,4 @@
 # Bank and YNAB access tokens
 *.txt
 *.json
+*.swp
