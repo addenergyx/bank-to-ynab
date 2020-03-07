@@ -75,9 +75,9 @@ def send_email(num):
             server.sendmail(sender_email, receiver_email, message.as_string())
 
 def job():
-    lastDay = monthrange(2020, 2)[1]
-    currentMonth = '{:02d}'.format(datetime.now().month)
+    currentMonth = '{:02d}'.format(datetime.now().month) # Using int() here changes format of month, need leading 0 
     currentYear = datetime.now().year
+    lastDay = monthrange(int(currentYear),int(currentMonth))[1]
 
     if datetime.now().day == 1:
        global email_triggered
