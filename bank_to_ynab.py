@@ -50,7 +50,7 @@ def cleanup_transactions(transactions: list, account):
         a['account_id'] = account # Match bank access token to ynab acount id
         a['import_id'] = a['date'] + '-' + a['transaction_id'][:25] # Pervent duplications in ynab
         a['amount'] = int(a['amount'] * -1000) # YNAB uses milliunits, 1,000 milliunits equals "one" unit
-        a['cleared'] = 'cleared' # Plaid API only gets cleared transactions
+        #a['cleared'] = 'cleared' # Plaid API only gets cleared transactions
         for k in entriesToRemove:
             a.pop(k, None)
     return transactions
