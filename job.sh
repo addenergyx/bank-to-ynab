@@ -1,5 +1,6 @@
 #!/bin/sh
 source /etc/profile
+source /etc/environment
 
 cd /
 cd home/pi/bank-to-ynab
