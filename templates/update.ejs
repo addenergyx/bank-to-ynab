@@ -1,0 +1,22 @@
+<button id="link-button">Link Account</button>
+<p>jojo</p>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.3/jquery.min.js"></script>
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+<script type="text/javascript">
+(function($) {
+  var handler = Plaid.create({
+  clientName: 'Plaid Quickstart',
+  product: ['transactions'],
+  env: '{{ plaid_environment }}',
+  key: '{{ plaid_public_key }}',
+  token: '{{ public_token }}',
+  onSuccess: function(public_token, metadata) {},
+  onExit: function(err, metadata) {},
+  onEvent: function(eventName, metadata) {}
+});
+
+  $('#link-button').on('click', function(e) {
+    handler.open();
+  });
+})(jQuery);
+</script>

@@ -23,6 +23,9 @@ from plaid import Client as PlaidClient
 PLAID_CLIENT_ID = os.getenv('PLAID_CLIENT_ID')
 PLAID_SECRET = os.getenv('PLAID_SECRET')
 PLAID_PUBLIC_KEY = os.getenv('PLAID_PUBLIC_KEY')
+
+WORKING_ENV = os.getenv('WORKING_ENV', 'development')
+
 # Use 'sandbox' to test with Plaid's Sandbox environment (username: user_good,
 # password: pass_good)
 # Use `development` to test with live users and credentials and `production`
@@ -51,7 +54,6 @@ def send_email(num):
     if not email_triggered:
         sender_email = os.getenv('GMAIL')
         receiver_email = os.getenv('MY_EMAIL')
-        #password = 'QN%z97QLf'
         
         message = MIMEMultipart("alternative")
         message["Subject"] = "Time to switch cards!!!" 
@@ -91,7 +93,10 @@ def job():
     if num >= 30:
         send_email(num)
 
-schedule.every(30).minutes.do(job)
+if WORKING_ENV == 'development':            
+    schedule.every(10).seconds.do(job)
+else:
+    schedule.every(30).minutes.do(job)
 
 while True:
     schedule.run_pending()
