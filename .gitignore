@@ -1,5 +1,7 @@
 # Bank and YNAB access tokens
 *.txt
+*.pyc
+*.csv
 *.json
 *.swp
 untitled*.py
