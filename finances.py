@@ -388,7 +388,7 @@ def barclays_check():
 p11, p12, p13, p14, p15, p16 = barclays_check()
 
 external_stylesheets =['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP, 
-                       'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css']
+                       'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css']
 
 app = dash.Dash(external_stylesheets=external_stylesheets, 
                 meta_tags=[
@@ -673,6 +673,28 @@ baby_step_7 = html.Div([
                 ], className="align-items-center"), 
             ], id='baby-step-7', className="baby-step-spacing")
 
+modal = html.Div(
+    [
+        dbc.Modal(
+            [
+                dbc.ModalHeader("SETTINGS", style={'margin':'0 auto'}),
+                dbc.ModalBody(
+                    [
+                        
+                    ],style={'textAlign':'center'}),
+                dbc.ModalFooter(
+                    [
+                        dbc.Button("Close", id="close", className="ml-auto"),
+                    ]
+                ),
+            ],
+            id="modal",
+            centered=True,
+            scrollable=True,
+        ), 
+    ], style={'padding-right':'20px','padding-bottom':'40px'},
+)
+
 body = html.Div(
     [
        dbc.Row(
@@ -729,6 +751,23 @@ body = html.Div(
                   ],width=12, lg=9
                   
             ),
+              
+            #html.Button("html", className='fixed-btn fas fa-plus glow-on-hover'),
+            html.Div(
+                [
+                    dbc.Button([html.Span(className='fa fa-bars icon')], className='fixed-btn'),
+                    html.Ul(
+                        [
+                            html.Li(dbc.Button([html.Span(className='fa fa-cog icon')], className='fixed-btn')),
+                            html.Li(dbc.Button([html.Span(className='fa fa-wallet icon')], className='fixed-btn')),
+                            html.Li(dbc.Button([html.Span(className='fa fa-running icon')], className='fixed-btn')),
+                            html.Li(dbc.Button([html.Span(className='fa fa-chart-line icon')], className='fixed-btn'))    
+                        ],className='fab-options')
+                ], className='fab-container'
+            ),
+            
+            html.Div(modal),
+            
             ## Update
             dcc.Interval(id="progress-interval", n_intervals=0, interval=600000),
             dcc.Interval(id="facts-interval", n_intervals=0, interval=60000),
