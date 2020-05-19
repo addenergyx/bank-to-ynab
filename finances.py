@@ -209,20 +209,20 @@ def generate_transactions_table():
                     html.Tr(
                         [
                             html.Td(
-                                html.P(row.values[0], className='balances')
+                                html.P(row.values[0], className='balances'), **{'data-label': 'Date'} #data-*={'label':"Due Date"}
                             ),
                             html.Td(
-                                html.P(row.values[1], className='balances')
+                                html.P(row.values[1], className='balances'), **{'data-label': 'Payee'} #data*={'label':"Account"}
                             ),
                             html.Td(
-                                html.P(format_amount(row.values[2]), className='balances'), className='amount'
+                                html.P(format_amount(row.values[2]), className='balances'), className='amount', **{'data-label': 'Amount'} #data*={'label':"Amount"}
                             )
                         ]    
                     )
                     for i, row in asl.iterrows()
-                ], className="hover-table"
+                ], className="hover-table transaction-table"
             ), 
-        ], style={"height": "250px", "overflowY": "scroll", "overflowX": "hidden",'margin-bottom':'30px' }, className='large-2'
+        ], style={"height": "250px", "overflowY": "scroll", "overflowX": "hidden"}, className='large-2'
         )
 
 def investments():
@@ -262,7 +262,7 @@ def investments():
                         ],    
                     )
                     for i, row in inves.iterrows()
-                ], style={'width':'100%'}
+                ], style={'width':'100%'}, className="hover-table invest-table"
             ), 
         ], style={"height": "150px", "overflowY": "scroll", "overflowX": "hidden",'margin-bottom':'5px' }, className='large-2'
         )
@@ -294,12 +294,12 @@ def generate_balances_table():
                                     ], style={'width':'10%'},
                                 ),
                                 html.Td(
-                                    html.P(key, className='balances', style={'margin-left':'5px'})
+                                    html.P(key, className='balances', style={'margin-left':'5px'}), style={'width':'60%'}
                                 ),
                                 html.Td(
                                     html.P(format_amount(value['balance']), className='balances'), className='amount'
                                 ),
-                                html.P("adfdasfdasf", id="hidden-{}".format(key), hidden=True)
+                                html.P(id="hidden-{}".format(key), hidden=True)
                             ], style={'height': '50px'}, id=key    
                             
                         )for key, value in accounts.items()
@@ -424,16 +424,23 @@ app.index_string = '''
           {%config%} 
           {%scripts%} 
           {%renderer%}
-          <script>
-            function myFunction() {
-              var x = document.getElementById("myDIV");
-              if (x.style.display === "none") {
-                x.style.display = "block";
-              } else {
-                x.style.display = "none";
-              }
-            }
-          </script>
+            <!-- fading text https://stackoverflow.com/questions/37492106/quote-paragraphs-replacing-each-other-via-fade-in-and-out-in-a-typewriter-fashio -->
+            <script>
+                (function() {
+        
+                    var quotes = $(".quotes");
+                    var quoteIndex = -1;
+        
+                    function showNextQuote() {
+                        ++quoteIndex;
+                        quotes.eq(quoteIndex % quotes.length)
+                            .fadeIn(5000)
+                            .delay(2000)
+                            .fadeOut(5000, showNextQuote);
+                    }
+                    showNextQuote();
+                })();
+            </script>
         </footer>
     </body>
 </html>
@@ -453,7 +460,7 @@ categorises_card = [
     dbc.CardHeader("Finance Fun Facts", style={'textAlign':'center', 'color':colors['text']}),
     dbc.CardBody(
         [
-            html.Div(id='facts'),
+            html.Div(id='facts', className='ext-box'),
         ], style={'color':colors['text']}
     ),
 ]
@@ -471,12 +478,15 @@ weekly_card = [
     dbc.CardHeader("This Week You Spent", style={'textAlign':'center', 'color':colors['text']}),
     dbc.CardBody(
         [
+            html.Div([
             #dcc.Loading(
-                html.H2(children=[initial_weekly()], id="weekly-total", className="card-title"),
+                html.H1(children=[initial_weekly()], id="weekly-total", className="card-title"),
             #),
-            html.A("See More >", id='see-more', hidden=True),
-            html.Div(generate_transactions_table(), id='transactions', hidden=False)
-        ], style={'color':colors['text'], 'textAlign':'center'},
+                html.A("See More >", id='see-more', hidden=True),
+                html.Div(generate_transactions_table(), id='transactions', hidden=False)
+            ], className='int-box'),
+        ], style={'color':colors['text'], 'textAlign':'center'}, 
+        className='ext-box'
     ),
 ]
 
@@ -703,6 +713,9 @@ body = html.Div(
                                        #style={'background-color':'red'}
                                        ), width=12, lg=4),
                       dbc.Col(dbc.Card(weekly_card, className='card-style'), width=12, lg=4),
+                      # dbc.Col(dbc.Card(weekly_card, className='card-style', 
+                      #                  style={'background-image': 'url(\'assets/img/sand background.jpg\')',
+                      #                         'background-size': 'cover', 'background-position': 'center'}), width=12, lg=4),
                       dbc.Col(dbc.Card(categorises_card, className='card-style'), width=12, lg=4),
                     ],
                     ),
@@ -816,28 +829,33 @@ def update_facts(n):
                 if re.search('vanguard', transaction['name'], re.IGNORECASE) or re.search('trading212', transaction['name'], re.IGNORECASE):
                     investment = investment + transaction['amount']
     
-        pizza = 19.99
-        num_of_pizza_missed = round(investment / pizza)
+        # pizza = 19.99
+        # num_of_pizza_missed = round(investment / pizza)
         
-        image_filename = 'assets/img/pizza.png'
+        image_filename = 'assets/img/investment.png'
         encoded_image = base64.b64encode(open(image_filename, 'rb').read())
+        
+        if investment < 300:
+            text = 'You can do better'
+        else:
+            text = 'Good work keep it up!!!'
+
         
         return html.Div(
             [
-                html.P("Your Savings/Investments this month could of bought...", className='mainSpan'),
+                html.P("This month you have invested...", className='mainSpan'),
                 html.Div(
                     [
                         html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'100px', }),
-                        html.P(f"~{num_of_pizza_missed}"),
-                        html.P("Domino's Pizzas")
-                    ], className='hoverSpan', style={'margin':'0 auto'}
+                        html.P(f"£{investment}"),
+                        html.P(text)
+                    ], className='hoverSpan'
                 )
-            ], style={'text-align':'center', 'display': 'flex', 'align-items': 'center'}
+            ], className="int-box"
         )
     
     elif rotation == 1:
         ## Top 5
-        print("2")
         image_filename = 'assets/img/shopping.png'
         encoded_image = base64.b64encode(open(image_filename, 'rb').read())
             
@@ -878,6 +896,8 @@ def update_facts(n):
         fig = px.pie(merch_freq, values='Count', names='Payee')
         
         fig.update_layout(
+            height=250,
+            showlegend=False,
             margin=dict(
                 l=0,
                 r=0,
@@ -887,21 +907,20 @@ def update_facts(n):
             paper_bgcolor='rgba(0,0,0,0)',
             plot_bgcolor='rgba(0,0,0,0)',
         )
-        print("2")
         return html.Div(
                 [
                     html.Div(
                         [
                             html.P("Top 5 Merchants..."),
-                            html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'100px', })
-                        ], className='mainSpan int-box'
+                            html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'100px'})
+                        ], className='mainSpan'
                     ),
                     html.Div(
                         [
-                            dcc.Graph(figure=fig),
+                            dcc.Graph(figure=fig, config={'displayModeBar': False}),
                         ], className='hoverSpan', #style={'margin':'0 auto'}
                     ),
-                ], className="ext-box",
+                ], className="int-box"
             )
     else:
         rotation = 0
@@ -909,7 +928,6 @@ def update_facts(n):
         num = num_of_card_transations(coop_transactions)
         image_filename = 'assets/img/card.png'
         encoded_image = base64.b64encode(open(image_filename, 'rb').read())
-        print("3")
         return html.Div(
                 [
                     html.Div(
@@ -922,16 +940,10 @@ def update_facts(n):
                         [
                             html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'100px', }),
                             html.P(f"{num} coop card transactions this month"),
-                        ], className='hoverSpan', style={'margin':'0 auto'}
+                        ], className='hoverSpan'
                     )
-                ], style={'text-align':'center', 'display': 'flex', 'align-items': 'center'}
+                ], className="int-box"
             )
-    
-
-
-    # ## Opportunity cost
-
-
     
     # dash_table.DataTable(
     #     id='table',
@@ -1169,45 +1181,102 @@ def update_spend_graph(n):
     
     data = get_tokens()
     
-    currentYear = datetime.now().year
-    currentMonth = datetime.now().month
+    #https://stackoverflow.com/questions/9724906/python-date-of-the-previous-month
+    import dateutil.relativedelta
+    today = date.today()
+    start_date = today + dateutil.relativedelta.relativedelta(months=-1, day=1)
+    
+    currentYear = today.year
+    currentMonth = today.month
     
     lastDay = monthrange(int(currentYear),int(currentMonth))[1]
     
-    start_date = date(currentYear, datetime.now().month, 1)
     end_date = date(currentYear, datetime.now().month, lastDay)   
     
-    monthly_transactions = pd.DataFrame()
+    this_months_transactions = pd.DataFrame()
     last_months_transactions = pd.DataFrame()
 
-    
     for i, account in data.iterrows():        
         transactions = get_some_transactions(account['access_token'], str(start_date), str(end_date))
         for transaction in transactions:
-            monthly_transactions = monthly_transactions.append(transaction, ignore_index=True)
-    
-    monthly_transactions.amount.describe()
+            if datetime.strptime(transaction['date'], '%Y-%m-%d').month == start_date.month:
+                last_months_transactions = last_months_transactions.append(transaction, ignore_index=True)
+            if datetime.strptime(transaction['date'], '%Y-%m-%d').month == end_date.month:
+                this_months_transactions = this_months_transactions.append(transaction, ignore_index=True)
 
-    #https://stackoverflow.com/questions/30857680/pandas-resampling-error-only-valid-with-datetimeindex-or-periodindex
-    data = monthly_transactions.set_index('date')
-    data.index = pd.to_datetime(data.index)
+    
+    # this_months_transactions.amount.describe()
+    # last_months_transactions.amount.describe()
 
-    #https://stackoverflow.com/questions/41625077/python-pandas-split-a-timeserie-per-month-or-week
-    weeks = [g for n, g in data.groupby(pd.Grouper(freq='W'))]
+    # #https://stackoverflow.com/questions/30857680/pandas-resampling-error-only-valid-with-datetimeindex-or-periodindex
+    # data = monthly_transactions.set_index('date')
+    # data.index = pd.to_datetime(data.index)
 
-    months = [g.reset_index for n, g in data.groupby(pd.Grouper(freq='M'))]
+    # #https://stackoverflow.com/questions/41625077/python-pandas-split-a-timeserie-per-month-or-week
+    # weeks = [g for n, g in data.groupby(pd.Grouper(freq='W'))]
 
-    df = weeks[0]
-    df.reset_index(inplace=True)
+    # months = [g for n, g in data.groupby(pd.Grouper(freq='M'))]
+
+    # last_months_transactions = months[0]
+    # this_months_transactions = months[1]
     
-    m2 = monthly_transactions.groupby(['date'])['amount'].sum()
+    # last_months_transactions.reset_index(inplace=True)
+    # this_months_transactions.reset_index(inplace=True)
     
-    ## Fill missing dates
-    m2.index = pd.PeriodIndex(m2.index, freq='D')
+    # for df in months:
+    #     df.reset_index(inplace=True)
+    #     df = df.groupby(['date'])['amount'].sum()
+    #     df.index = pd.PeriodIndex(df.index, freq='D')
+    #     df = df.reset_index()
+    #     date = df['date'][0].start_time
+    #     df = df.reindex(pd.period_range(, datetime.today().date()), fill_value=0.0)
+        
+    def datesrange(d1):
+        start = date(d1.date().year, d1.date().month, 1)
+        end = start - dateutil.relativedelta.relativedelta(day=31)
+        return start, end
     
-    m3 = m2.reindex(pd.period_range(start_date, datetime.today().date()), fill_value=0.0)
+    ## Exploratory Data Analysis (EDA): transaction amounts
+    def cleanup(df):
+        
+        ## Remove pay
+        fillter = df['name'].str.contains('consulting', case=False)
+        df = df[~fillter]
+        
+        df = df.groupby(['date'])['amount'].sum()
+        
+        ## Fill missing dates
+        df.index = pd.PeriodIndex(df.index, freq='D')
+        
+        #start, end = datesrange(df.index[0].start_time)
+        
+        if date.today().month == df.index[0].start_time.date().month:
+            ## This months
+            start = df.index[5].start_time.date().replace(day=1)
+            df = df.reindex(pd.period_range(start, datetime.today().date()), fill_value=0.0)
+        else:
+            ## Last months
+            start, end = datesrange(df.index[0].start_time)
+            df = df.reindex(pd.period_range(start, end), fill_value=0.0)
+
+        ## Cumulative Sum
+        df = df.cumsum()  
+        return df
     
-    m4 = m3.cumsum()    
+    this_months_transactions = cleanup(this_months_transactions)
+    last_months_transactions = cleanup(last_months_transactions)
+    
+    while len(last_months_transactions) < lastDay:
+        last_months_transactions = last_months_transactions.append(pd.Series([last_months_transactions[-1]]))
+    
+    # m2 = monthly_transactions.groupby(['date'])['amount'].sum()
+    
+    # ## Fill missing dates
+    # m2.index = pd.PeriodIndex(m2.index, freq='D')
+    
+    # m3 = m2.reindex(pd.period_range(start_date, datetime.today().date()), fill_value=0.0)
+    
+    # m4 = m3.cumsum()    
     
     # x = '2020-05-01'
     
@@ -1215,9 +1284,12 @@ def update_spend_graph(n):
     
     # text = ['{}: {}'.format(i[1]['name'], i[1]['amount']) for i in monthly_transactions.iterrows() if i[1]['date'] == x]
     
-    dates = [start_date + timedelta(days=x) for x in range((end_date-start_date).days + 1)]
-
-    trace0 = go.Scatter(x=dates, y=m4,
+    ## Dates of current month
+    #dates = [start_date + timedelta(days=x) for x in range((end_date-start_date).days + 1)]
+    
+    budget = 1300
+    
+    trace0 = go.Scatter(x=list(range(1,lastDay+1)), y=this_months_transactions,
                     mode='lines',
                     name='Spending',
                     line = {'color':'#FFFFFF'},
@@ -1229,22 +1301,21 @@ def update_spend_graph(n):
                     # text = ['Custom text {}'.format(i + 1) for i in range(5)],
                     )
     
-    
-    trace1 = go.Scatter(x=dates, y=[1000] * len(dates),
+    trace1 = go.Scatter(x=list(range(1,lastDay+1)), y=([budget] * (lastDay+1)),
                     mode='lines',
                     name='Budget',
                     line = {'color':'#D30E92','dash':'dot'},
                     #fill='tozeroy'
                     )
 
-    # trace2 = go.Scatter(x=cred['Month'], y=cred['Clear Score (Equifax)'],
-    #                 mode='lines',
-    #                 name='Equifax',
-    #                 line = {'color':'#C2FF0A'},
-    #                 #fill='tozeroy'
-    #                 )
+    trace2 = go.Scatter(x=list(range(1,lastDay+1)), y=last_months_transactions,
+                    mode='lines',
+                    name='Last Month',
+                    line = {'color':'#261473'},
+                    fill='tozeroy'
+                    )
     
-    data = [trace0, trace1]
+    data = [trace0, trace2, trace1]
     
     layout = go.Layout(paper_bgcolor='rgba(0,0,0,0)',
                        plot_bgcolor='rgba(0,0,0,0)',

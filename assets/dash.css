@@ -6,10 +6,125 @@ html,body {
     overflow-x: hidden;
 }
 
+
+
+
+table {
+  border-collapse: collapse;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  table-layout: fixed;
+}
+
+table caption {
+  font-size: 1.5em;
+  margin: .5em 0 .75em;
+}
+
+table tr {
+/*  background-color: #172136;*/
+  border-bottom: 1px solid #152035;
+  padding: .35em;
+}
+
+.hover-table tr:hover {
+    background-color: blueviolet;
+    border-left: 3px solid white;
+}
+
+/*
+table th,
+table td {
+  padding: .625em;
+}
+*/
+
+table th {
+  font-size: .85em;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 p.balances {
     color: #FFFFFF;
     margin: auto;
 }
+
+td.amount {
+    white-space: nowrap;
+    overflow: hidden;
+    text-align: right;
+}
+
+
+
+@media screen and (max-width: 600px) {
+  table.transaction-table {
+    border: 0;
+    
+  }
+
+  p.balances {
+    color: #FFFFFF;
+    margin: auto;
+  }
+    
+  table.transaction-table caption {
+    font-size: 1.3em;
+    color: white;
+  }
+  
+/*
+  table.transaction-table thead {
+    border: none;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+  }
+*/
+  
+  table.transaction-table tr {
+    border-bottom: 3px solid #ddd;
+    display: block;
+    margin-bottom: .625em;
+    color: white;
+  }
+  
+  table.transaction-table td {
+    border-bottom: 1px solid #ddd;
+    display: block;
+    font-size: .8em;
+    text-align: right;
+  }
+  
+  table.transaction-table td::before {
+    /*
+    * aria-label has no advantage, it won't be read inside a table
+    content: attr(aria-label);
+    */
+    content: attr(data-label);
+    float: left;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  
+  table.transaction-table td:last-child {
+    border-bottom: 0;
+  }
+}
+
+
+
+
+
+
+
+
 
 .grad {
     background-image: linear-gradient(to top right, #1E1572, #D30E92);
@@ -38,6 +153,20 @@ p.balances {
     border-color: aqua;
 }
 
+.card-style {
+    text-align: center;
+}
+
+td.amount {
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+
+
+
+
+/*
 table, th, td {
     color: white;
     vertical-align: middle;
@@ -58,6 +187,16 @@ td.amount {
     background-color: blueviolet;
     border-left: 5px solid white;
 }
+
+p.balances {
+    color: #FFFFFF;
+    margin: auto;
+}
+*/
+
+
+
+
 
 .baby-step-row {
     height: 50px;
@@ -116,12 +255,11 @@ div:hover .mainSpan {
 .hoverSpan {
     opacity:0;
     font-weight:bold;
-    padding:20px;
     text-align: center;
     position: absolute;
     left: 0;
     right: 0;
-    top:0;
+    top:30%;
     bottom:0;
 }
 
@@ -131,13 +269,10 @@ div.hoverSpan:hover  {
     transition: opacity .5s ease-in-out;
 }
 
-div.ext-box { display: table; width:100%;}
-
 .ext-box {
-   display: flex;
-   align-items: center; 
-   justify-content: center;
+    display: flex;
+    align-items: center; 
+    justify-content: center;
  }
 
-div.int-box { display: table-cell; vertical-align: middle; }
-
+.int-box { display: table-cell; vertical-align: middle; }
