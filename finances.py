@@ -12,10 +12,8 @@ import dash_html_components as html
 import pandas as pd
 import dash_daq as daq
 from dash.dependencies import Input, Output, State
-import numpy as np
 import os
 from calendar import monthrange
-import time
 from typing import List
 from plaid import Client as PlaidClient
 import plotly.graph_objs as go
@@ -28,7 +26,12 @@ from pandas.tseries.offsets import BMonthEnd
 import base64
 import re
 import dash_table
-import base64
+import requests
+from bs4 import BeautifulSoup
+from random import randint, choice
+from server import server
+from components import Fab
+import locale
 
 data = get_tokens()
 
@@ -45,6 +48,8 @@ STARLING_API_TOKEN = os.getenv('STARLING_API_TOKEN')
 starling_account = StarlingAccount(STARLING_API_TOKEN)
 
 rotation = 0
+
+locale.setlocale(locale.LC_ALL, '')
 
 def progress_bar_color(progress):
     ## Changing progress bar colour
@@ -70,21 +75,21 @@ def num_of_card_transations(transactions: list):
                 num+=1
     return num
 
-def num_of_direct_debt(transactions: list):
-    num = 0
-    for a in transactions:
-        if 'special' in a['category'] and a['amount'] > 0:
-            num+=1
-    return num
+# def num_of_direct_debt(transactions: list):
+#     num = 0
+#     for a in transactions:
+#         if 'special' in a['category'] and a['amount'] > 0:
+#             num+=1
+#     return num
 
-def initial_baby_step_2():
-    debt, limit = total_debt()
+# def initial_baby_step_2():
+#     debt, limit = total_debt()
        
-    progress = 100 - int(( debt / limit) *100)
+#     progress = 100 - int(( debt / limit) *100)
     
-    colour = progress_bar_color(progress)    
+#     colour = progress_bar_color(progress)    
     
-    return progress, colour
+#     return progress, colour
 
 def initial_weekly():
     
@@ -119,32 +124,34 @@ def update_balances():
     balances = {}
     
     for i, account in data.iterrows():        
-        try:
-            #accounts = client.Accounts.balance.get(account['access_token'])['accounts']
-            
-            bank = client.Accounts.balance.get(account['access_token'])
-            accounts = bank['accounts']
-            ins_id = bank['item']['institution_id']
-        
-        except PlaidErrors.PlaidError as e:
-            print(e)
-            print(account['bank'])
-            pass
-        
-        for row in accounts:
-            if row['subtype'] == 'checking':
-                logo = client.Institutions.get_by_id(ins_id, _options={ 'include_display_data': True })['institution']['logo']
-                
-                if logo is None:
-                    path = 'assets/img/'
-                    folder = os.listdir(path)
-                    for image_filename in folder:
-                        if re.search(account['bank'], image_filename, re.IGNORECASE):
-                            logo = base64.b64encode(open('{0}{1}'.format(path, image_filename), 'rb').read()).decode()
-                            break
+        if account['bank'] != 'Barclaycard':
 
-                balances[f"{account['bank']}"] = {'balance':row['balances']['current'],
-                                                  'logo':logo}
+            try:
+                #accounts = client.Accounts.balance.get(account['access_token'])['accounts']
+                
+                bank = client.Accounts.balance.get(account['access_token'])
+                accounts = bank['accounts']
+                ins_id = bank['item']['institution_id']
+            
+            except PlaidErrors.PlaidError as e:
+                print(e)
+                print(account['bank'])
+                pass
+            
+            for row in accounts:
+                if row['subtype'] == 'checking':
+                    logo = client.Institutions.get_by_id(ins_id, _options={ 'include_display_data': True })['institution']['logo']
+                    
+                    if logo is None:
+                        path = 'assets/img/'
+                        folder = os.listdir(path)
+                        for image_filename in folder:
+                            if re.search(account['bank'], image_filename, re.IGNORECASE):
+                                logo = base64.b64encode(open('{0}{1}'.format(path, image_filename), 'rb').read()).decode()
+                                break
+    
+                    balances[f"{account['bank']}"] = {'balance':row['balances']['current'],
+                                                      'logo':logo}
         # Update Starling bank data
         starling_account.update_balance_data()
         logo = client.Institutions.search('starling', _options={ 'include_display_data': True })['institutions'][0]['logo']
@@ -167,13 +174,84 @@ def total_debt():
             pass
         for row in accounts:
             if row['subtype'] == 'credit card':
+                # print(account['bank'])
+                # print(row['subtype'])
+                # print(row['balances']['current'])
+                # print(row['balances']['limit'])
+                # print('---------------')
                 debt = debt + row['balances']['current']
                 limit = limit + row['balances']['limit']
             elif row['balances']['current'] < 0:
+                # print(account['bank'])
+                # print(row['subtype'])
+                # print(row['balances']['current'])
+                # print(row['balances']['limit'])
+                # print('---------------')
                 debt = debt - row['balances']['current']
                 limit = limit + row['balances']['limit']
         
     return debt, limit
+
+def util_bar_color(progress):
+    ## Changing progress bar colour
+    if progress <= 25:
+        color = "success"
+    elif progress <= 75:
+        color = "warning"
+    else:
+        color = "danger"
+    return color
+
+def credit_utilisation():
+    
+    util_dict = {}
+    
+    for i, account in data.iterrows():        
+        try:
+            accounts = client.Accounts.balance.get(account['access_token'])['accounts']
+        except PlaidErrors.PlaidError as e:
+            print(account['bank'])
+            print(e)
+            pass
+        for row in accounts:
+            # print(account['bank'])
+            # print(row['subtype'])
+            # print('---------------')
+            if row['subtype'] == 'credit card':
+                debt = row['balances']['current']
+                limit = row['balances']['limit']
+                util = int((debt/limit)*100)
+                
+                util_dict[account['bank']] = {'debt':debt, 'limit':limit, 'util':util}
+                        
+            ## Only want credit card utilisation    
+            # elif row['balances']['current'] < 0:
+            #     debt = debt - row['balances']['current']
+            #     limit = limit + row['balances']['limit']
+    return util_dict
+
+def generate_utilisation_table():
+    util_dict = credit_utilisation()
+    
+    return html.Div(
+        [
+            
+            html.Div(
+                [
+                    html.P(key, className='util-name'),
+                    dbc.Progress(
+                        [
+                            html.Div(className='marker amber-marker', title="25%"),
+                            html.Div(className='marker red-marker', title="75%"),
+                        ], value=value['util'], className='util-progress', color=util_bar_color(value['util'])
+                    ),
+                    html.P( f"{locale.currency(value['debt'])} of {locale.currency(value['limit'])} used", className='util-usage'),
+                ], className='util-block'
+            ) for key, value in util_dict.items()
+            
+        ]
+        
+    )
 
 # import clearbit
 
@@ -182,7 +260,6 @@ def total_debt():
 # company = clearbit.Company.find(domain='tesco.com', stream=True)
 # if company != None:
 #     print ("Name: " + company['name'] + " " + company['logo'])
-
 
 def generate_transactions_table():
     
@@ -387,10 +464,12 @@ def barclays_check():
 
 p11, p12, p13, p14, p15, p16 = barclays_check()
 
-external_stylesheets =['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP, 
+external_stylesheets = ['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP, 
                        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css']
 
-app = dash.Dash(external_stylesheets=external_stylesheets, 
+#external_scripts = [
+
+app = dash.Dash(name='finance', server=server, url_base_pathname='/finance/', external_stylesheets=external_stylesheets, 
                 meta_tags=[
                     { 'name':'viewport','content':'width=device-width, initial-scale=1' },## Fixes media query not showing
                     {
@@ -405,48 +484,33 @@ app.index_string = '''
 <html>
     <head>
         {%metas%}
+        <script>
+            $(function() {
+              $("[title]").tooltip({'placement': "bottom"});
+            });
+        </script>
         {%css%}
         {%favicon%}
-        <style>
-            #myDIV {
-              width: 100%;
-              padding: 50px 0;
-              text-align: center;
-              background-color: lightblue;
-              margin-top: 20px;
-            }
-        </style>
     </head>
     <body>
         <div></div>
         {%app_entry%}
         <footer> 
-          {%config%} 
-          {%scripts%} 
-          {%renderer%}
-            <!-- fading text https://stackoverflow.com/questions/37492106/quote-paragraphs-replacing-each-other-via-fade-in-and-out-in-a-typewriter-fashio -->
             <script>
-                (function() {
-        
-                    var quotes = $(".quotes");
-                    var quoteIndex = -1;
-        
-                    function showNextQuote() {
-                        ++quoteIndex;
-                        quotes.eq(quoteIndex % quotes.length)
-                            .fadeIn(5000)
-                            .delay(2000)
-                            .fadeOut(5000, showNextQuote);
-                    }
-                    showNextQuote();
-                })();
+                $(function() {
+                  $("[title]").tooltip({'placement': "bottom"});
+                });
             </script>
+          {%config%} 
+          {%scripts%}
+          {%renderer%}
         </footer>
     </body>
 </html>
 '''
 
 app.title = 'Digital Dashboard - Finance'
+app.config.suppress_callback_exceptions = True
 
 colors = {
     'background':'#101727',
@@ -469,7 +533,9 @@ monthly_card = [
     dbc.CardHeader("Monthly Spend", style={'textAlign':'center', 'color':colors['text']}),
     dbc.CardBody(
         [
-            dcc.Graph(id='monthly-fig')
+            dcc.Loading(
+                dcc.Graph(id='monthly-fig')
+            )
         ], style={'color':colors['text'], 'padding':'0px'}
     ),
 ]
@@ -482,8 +548,8 @@ weekly_card = [
             #dcc.Loading(
                 html.H1(children=[initial_weekly()], id="weekly-total", className="card-title"),
             #),
-                html.A("See More >", id='see-more', hidden=True),
-                html.Div(generate_transactions_table(), id='transactions', hidden=False)
+                html.A("See More >", id='see-more'),
+                html.Div(generate_transactions_table(), id='transactions', hidden=True)
             ], className='int-box'),
         ], style={'color':colors['text'], 'textAlign':'center'}, 
         className='ext-box'
@@ -594,7 +660,7 @@ coop_card = [
 baby_step_1 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("£1000 Emergency Fund", style={'color': colors['text'] }, className='balances'),
+                        html.P("£1000 Emergency Fund", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-1", color="primary", striped=True, animated=True),
@@ -603,24 +669,24 @@ baby_step_1 = html.Div([
                 html.P("helloooooooooooooooooooooooooooooooo", id='hidden-baby-step-1', hidden=False, style={'color': colors['text'] }),
             ], id='baby-step-1', className="baby-step-spacing")     
 
-progress, colour = initial_baby_step_2()
+#progress, colour = initial_baby_step_2()
 
 baby_step_2 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("Pay Off Debt", style={'color': colors['text'] }, className='balances'),
+                        html.P("Pay Off Debt", className='balances'),
                     ]),
                     dbc.Col([
-                        dbc.Progress(id="progress-2", color=colour, value=progress, striped=True, animated=True),
+                        dbc.Progress(id="progress-2", color="primary", striped=True, animated=True),
                     ]),
                 ], className="align-items-center"),
-                html.P("helloooooooooooooooooooooooooooooo", id='hidden-baby-step-2', hidden=False, style={'color': colors['text'] }),
+                html.Div(generate_utilisation_table(), id='hidden-baby-step-2', hidden=False),
             ], id='baby-step-2', className="baby-step-spacing")
 
 baby_step_3 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("3 Month Emergency Fund", style={'color': colors['text'], }, className='balances'),
+                        html.P("3 Month Emergency Fund", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-3", color="primary", striped=True, animated=True),
@@ -631,7 +697,7 @@ baby_step_3 = html.Div([
 baby_step_4 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("Invest 15%", style={'color': colors['text'], }, className='balances'),
+                        html.P("Invest 15%", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-4", color="primary", striped=True, animated=True),
@@ -643,7 +709,7 @@ baby_step_4 = html.Div([
 baby_step_5 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("Kids University fund", style={'color': colors['text'], }, className='balances'),
+                        html.P("Kids University fund", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-5", color="primary", striped=True, animated=True),
@@ -654,7 +720,7 @@ baby_step_5 = html.Div([
 baby_step_6 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("Pay Off Mortgage", style={'color': colors['text'], }, className='balances'),
+                        html.P("Pay Off Mortgage", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-6", color="primary", striped=True, animated=True),
@@ -665,7 +731,7 @@ baby_step_6 = html.Div([
 baby_step_7 = html.Div([
                 dbc.Row([
                     dbc.Col([
-                        html.P("Build Wealth And Give", style={'color': colors['text'], }, className='balances'),
+                        html.P("Build Wealth And Give", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-7", color="primary", striped=True, animated=True),
@@ -714,7 +780,16 @@ body = html.Div(
                         baby_step_5,
                         baby_step_6,
                         baby_step_7,
-                        ], #style={'padding-right':'20px','padding-left':'20px'}
+                        html.Div(
+                            [
+                                html.H3("Quote of the day", className='quote-header', id='quote-header'),
+                                html.Div([
+                                    html.H4(id='quote'),
+                                    html.H5(id='cite'),
+                                    dcc.Interval(id="quotes-interval", n_intervals=0, interval=30000), 
+                                ]),
+                            ], className='quote-box')
+                        ], 
                     ),
                     
                 ], width=12,lg=3, className='card grad', style={ 'padding':'20px', #'height':'100vh'
@@ -735,6 +810,7 @@ body = html.Div(
                                        #style={'background-color':'red'}
                                        ), width=12, lg=4),
                       dbc.Col(dbc.Card(weekly_card, className='card-style'), width=12, lg=4),
+                      dcc.Interval(id="facts-interval", n_intervals=0, interval=60000),
                       # dbc.Col(dbc.Card(weekly_card, className='card-style', 
                       #                  style={'background-image': 'url(\'assets/img/sand background.jpg\')',
                       #                         'background-size': 'cover', 'background-position': 'center'}), width=12, lg=4),
@@ -751,30 +827,47 @@ body = html.Div(
                   ],width=12, lg=9
                   
             ),
-              
-            #html.Button("html", className='fixed-btn fas fa-plus glow-on-hover'),
-            html.Div(
-                [
-                    dbc.Button([html.Span(className='fa fa-bars icon')], className='fixed-btn'),
-                    html.Ul(
-                        [
-                            html.Li(dbc.Button([html.Span(className='fa fa-cog icon')], className='fixed-btn')),
-                            html.Li(dbc.Button([html.Span(className='fa fa-wallet icon')], className='fixed-btn')),
-                            html.Li(dbc.Button([html.Span(className='fa fa-running icon')], className='fixed-btn')),
-                            html.Li(dbc.Button([html.Span(className='fa fa-chart-line icon')], className='fixed-btn'))    
-                        ],className='fab-options')
-                ], className='fab-container'
-            ),
             
+            html.Div(Fab()),
             html.Div(modal),
+            
+            # html.Div(
+            #     [
+            #         dbc.Button([html.Span(className='fa fa-bars icon')], className='fixed-btn'),
+            #         html.Ul(
+            #             [
+            #                 html.Li(dbc.Button([html.Span(className='fa fa-cog icon')], id='open', className='fixed-btn')),
+            #                 html.Li(dbc.NavLink(dbc.Button([html.Span(className='fa fa-wallet icon')], className='fixed-btn'), href='../', external_link=True)),
+            #                 html.Li(dbc.NavLink(dbc.Button([html.Span(className='fa fa-running icon')], className='fixed-btn'), href='../', external_link=True)),
+            #                 html.Li(dbc.NavLink(dbc.Button([html.Span(className='fa fa-chart-line icon')], className='fixed-btn'), href='../', external_link=True))    
+            #             ],className='fab-options')
+            #     ], className='fab-container'
+            #   ),
+            
+            # html.Div(
+            #     [
+            #         html.Div(
+            #             [ 
+            #                 html.Div('ONE', className='option'),
+            #                 html.Div('TWO', className='option'),
+            #             ], className='bar bar-grey'
+            #         ),
+            #         html.Div(
+            #             [                     
+            #                 html.Div(
+            #                     [ 
+            #                         html.Div('ONE', className='option'),
+            #                         html.Div('TWO', className='option'),
+            #                     ], className='bar bar-purple')
+            #             ], className='bar-outer'),
+            #     ], className='container'),
             
             ## Update
             dcc.Interval(id="progress-interval", n_intervals=0, interval=600000),
-            dcc.Interval(id="facts-interval", n_intervals=0, interval=60000),
        ]),
        
   ])
-
+                                                                
 @app.callback(Output('container-button-timestamp', 'children'),
               [Input('cooop', 'n_clicks'), Input('barclays', 'n_clicks')])
 def displayClick(btn1, btn2):
@@ -787,6 +880,17 @@ def displayClick(btn1, btn2):
         bars = progress1  
     return html.Div(bars)
 
+@app.callback(
+    Output("modal", "is_open"),
+    [Input("open", "n_clicks"), Input("close", "n_clicks")],
+    [State("modal", "is_open")],
+)
+def toggle_modal(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
+
+## Current account transactions 
 # @app.callback(
 #     Output("hidden-Barclays", "hidden"),
 #     [Input("tabs", "n_clicks")],
@@ -804,6 +908,11 @@ def displayClick(btn1, btn2):
     [State("see-more", "hidden"), State("transactions", "hidden")],
 )
 def toggle_see_more(n_click, n_click2, state, state2):
+    
+    ## When page loads there is a click
+    if n_click is None:
+        return False, True
+    
     if state is True:
         return False, True
     return True, False
@@ -824,7 +933,6 @@ def toggle_step(n_click, state):
     [State("hidden-baby-step-4", "hidden")],
 )
 def toggle_step_4(n_click, state):
-    print(n_click)
     if n_click == 0:
         return True
     if state is True:
@@ -837,6 +945,8 @@ def toggle_step_4(n_click, state):
     [State("hidden-baby-step-2", "hidden")],
 )
 def toggle_step_2(n_click, state):
+    if n_click == 0:
+        return True
     if state is True:
         return False
     return True
@@ -1028,6 +1138,34 @@ def update_facts(n):
     
 #     # only add text after 10% progress to ensure text isn't squashed too much
 #     return progress, f"{progress} %" if progress >= 10 else "", num, progress_bar_color(progress)
+
+@app.callback(
+    [Output("quote", "children"), Output("cite", "children")],
+    [Input("quotes-interval", "n_intervals")],
+)
+def get_quote(n):
+    
+    url_page_number = randint(1,8)
+
+    URL = f'https://www.goodreads.com/quotes/tag/investing?page={url_page_number}'
+    
+    ## User agent gives browser information
+    ## Helps pretend to the site you're a user and not a bot
+    headers = {"User-Agent":'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36'}
+    
+    page = requests.get(URL, headers=headers)
+    
+    soup = BeautifulSoup(page.content, 'html.parser')
+    
+    quotes_dict = {}
+    for quote, cite in zip(soup.findAll('div',{'class':'quoteText'}), soup.findAll('span',{'class':'authorOrTitle'})):
+        a = re.search('“(.*)”', quote.get_text().strip())
+        quote = a.group(0)
+        quotes_dict[quote] = cite.get_text().strip()[:-1]
+    
+    quote, cite = choice(list(quotes_dict.items()))
+
+    return quote, cite
 
 @app.callback(
     [Output("progress-1", "value"), Output("progress-1", "children"), Output("progress-1", "color")],
@@ -1235,13 +1373,14 @@ def update_spend_graph(n):
     this_months_transactions = pd.DataFrame()
     last_months_transactions = pd.DataFrame()
 
-    for i, account in data.iterrows():        
-        transactions = get_some_transactions(account['access_token'], str(start_date), str(end_date))
-        for transaction in transactions:
-            if datetime.strptime(transaction['date'], '%Y-%m-%d').month == start_date.month:
-                last_months_transactions = last_months_transactions.append(transaction, ignore_index=True)
-            if datetime.strptime(transaction['date'], '%Y-%m-%d').month == end_date.month:
-                this_months_transactions = this_months_transactions.append(transaction, ignore_index=True)
+    for i, account in data.iterrows():
+        if account['bank'] != 'Barclaycard':
+            transactions = get_some_transactions(account['access_token'], str(start_date), str(end_date))
+            for transaction in transactions:
+                if datetime.strptime(transaction['date'], '%Y-%m-%d').month == start_date.month:
+                    last_months_transactions = last_months_transactions.append(transaction, ignore_index=True)
+                if datetime.strptime(transaction['date'], '%Y-%m-%d').month == end_date.month:
+                    this_months_transactions = this_months_transactions.append(transaction, ignore_index=True)
 
     
     # this_months_transactions.amount.describe()
@@ -1326,7 +1465,7 @@ def update_spend_graph(n):
     ## Dates of current month
     #dates = [start_date + timedelta(days=x) for x in range((end_date-start_date).days + 1)]
     
-    budget = 1300
+    monthly_budget = 1300
     
     trace0 = go.Scatter(x=list(range(1,lastDay+1)), y=this_months_transactions,
                     mode='lines',
@@ -1340,7 +1479,7 @@ def update_spend_graph(n):
                     # text = ['Custom text {}'.format(i + 1) for i in range(5)],
                     )
     
-    trace1 = go.Scatter(x=list(range(1,lastDay+1)), y=([budget] * (lastDay+1)),
+    trace1 = go.Scatter(x=list(range(1,lastDay+1)), y=([monthly_budget] * (lastDay+1)),
                     mode='lines',
                     name='Budget',
                     line = {'color':'#D30E92','dash':'dot'},

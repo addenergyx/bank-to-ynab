@@ -6,8 +6,47 @@ html,body {
     overflow-x: hidden;
 }
 
+.grad .progress {
+    border-radius: 50px;
+    background: #C60F90;
+    box-shadow: inset -3px 3px 6px #a80d7a, 
+                inset 3px -3px 6px #e411a6;
+    
+    /* Needed to keep marker in bar */
+    position: relative; /* remove this and title works */
+    overflow: visible;
+}
 
+.progress-bar {
+    border-radius: 50px;
+}
 
+.card-body .progress {
+    border-radius: 50px;
+    background: #0F1626;
+    box-shadow: inset -3px 3px 5px #0a0f19, 
+                inset 3px -3px 5px #141d33;
+}
+
+.util-progress {
+    height: 5px;
+}
+
+.marker {
+    width: 2px; 
+    height: 200%; 
+    position: absolute;
+}
+
+.red-marker {
+    background: red; 
+    left: 75%;
+}
+
+.amber-marker { 
+    background: #f0ad4e; 
+    left: 25%;
+}
 
 table {
   border-collapse: collapse;
@@ -122,17 +161,28 @@ td.transaction-table.amount {
   }
 }
 
-
-
-
-
-
-
-
-
 .grad {
     background-image: linear-gradient(to top right, #1E1572, #D30E92);
     border-style: none;
+    
+}
+
+.grad p {
+    color: white;
+}
+
+.util-block {
+    padding: 5px;
+    margin-left: 20px;
+}
+
+.util-block p {
+    font-size: 10px;
+    margin: auto;
+}
+
+.util-progress {
+    margin: 5px 0px;
 }
 
 #monthly-fig .main-svg {
@@ -288,12 +338,17 @@ div.hoverSpan:hover  {
     background-color: blueviolet;
     transition: background 0.75s;
     color: white;
+    background-color: blueviolet;
     border: 1px black;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 10px;
+    margin: auto;
     box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+}
+
+.btn-secondary {
+    background-color: blueviolet;
 }
 
 .fixed-btn:hover {
@@ -314,10 +369,10 @@ div.hoverSpan:hover  {
 
 .fab-options {
     list-style-type: none;
-    margin: 0;
+    margin: auto;
     position: absolute;
     bottom: 70px;
-    right: 0px;
+    right: -15px;
     opacity: 0;
     transition: all 0.3s ease;
     transform: scale(0);
@@ -393,14 +448,211 @@ div.hoverSpan:hover  {
 */
 
 
+.container {
+  align-items: center;
+  background: #eeedef;
+  display: flex;
+  height: 160px;
+  justify-content: center;
+  position: relative;
+  width: 360px;
+}
+.bar {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  height: 32px;
+  left: 0;
+  padding: 0 21px;
+  position: absolute;
+  width: 100%;
+}
+.bar-purple {
+  background: #6000ea;
+  color: white;
+  clip-path: polygon(
+    360px 0,
+    360px 32px,
+    43px 32px,
+    39.775442px 31.67494px,
+    36.772078px 30.74264px,
+    34.054248px 29.26745px,
+    31.686292px 27.31371px,
+    29.732549px 24.94575px,
+    28.257359px 22.22792px,
+    27.325063px 19.22456px,
+    27px 16px,
+    27.325063px 12.77544px,
+    28.257359px 9.77208px,
+    29.732549px 7.05425px,
+    31.686292px 4.68629px,
+    34.054248px 2.73255px,
+    36.772078px 1.25736px,
+    39.775442px 0.32506px,
+    43px 0
+  );
+  transition: clip-path 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.option {
+  cursor: pointer;
+  line-height: 142px;
+  text-align: center;
+  width: 33.33%;
+}
+.bar-outer {
+  clip-path: polygon(0 0, 120px 0, 120px 32px, 0 32px);
+  clip-path: polygon(
+    0 0,
+    0 32px,
+    104px 32px,
+    107.22456px 31.67494px,
+    110.22792px 30.74264px,
+    112.94575px 29.26745px,
+    115.31371px 27.31371px,
+    117.26745px 24.94575px,
+    118.74264px 22.22792px,
+    119.67494px 19.22456px,
+    120px 16px,
+    119.67494px 12.77544px,
+    118.74264px 9.77208px,
+    117.26745px 7.05425px,
+    115.31371px 4.68629px,
+    112.94575px 2.73255px,
+    110.22792px 1.25736px,
+    107.22456px 0.32506px,
+    104px 0
+  );
+  height: 32px;
+  pointer-events: none;
+  transition: clip-path 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+.bar-outer.pos2 .bar-purple {
+  clip-path: polygon(
+    360px 0,
+    360px 32px,
+    149px 32px,
+    145.775442px 31.67494px,
+    142.772078px 30.74264px,
+    140.054248px 29.26745px,
+    137.686292px 27.31371px,
+    135.732549px 24.94575px,
+    134.257359px 22.22792px,
+    133.325063px 19.22456px,
+    133px 16px,
+    133.325063px 12.77544px,
+    134.257359px 9.77208px,
+    135.732549px 7.05425px,
+    137.686292px 4.68629px,
+    140.054248px 2.73255px,
+    142.772078px 1.25736px,
+    145.775442px 0.32506px,
+    149px 0
+  );
+}
+.bar-outer.pos2 {
+  clip-path: polygon(
+    0 0,
+    0 32px,
+    210px 32px,
+    213.22456px 31.67494px,
+    216.22792px 30.74264px,
+    218.94575px 29.26745px,
+    221.31371px 27.31371px,
+    223.26745px 24.94575px,
+    224.74264px 22.22792px,
+    225.67494px 19.22456px,
+    226px 16px,
+    225.67494px 12.77544px,
+    224.74264px 9.77208px,
+    223.26745px 7.05425px,
+    221.31371px 4.68629px,
+    218.94575px 2.73255px,
+    216.22792px 1.25736px,
+    213.22456px 0.32506px,
+    210px 0
+  );
+}
+.bar-outer.pos3 .bar-purple {
+  clip-path: polygon(
+    360px 0,
+    360px 32px,
+    256px 32px,
+    252.775442px 31.67494px,
+    249.772078px 30.74264px,
+    247.054248px 29.26745px,
+    244.686292px 27.31371px,
+    242.732549px 24.94575px,
+    241.257359px 22.22792px,
+    240.325063px 19.22456px,
+    240px 16px,
+    240.325063px 12.77544px,
+    241.257359px 9.77208px,
+    242.732549px 7.05425px,
+    244.686292px 4.68629px,
+    247.054248px 2.73255px,
+    249.772078px 1.25736px,
+    252.775442px 0.32506px,
+    256px 0
+  );
+}
+.bar-outer.pos3 {
+  clip-path: polygon(0 0, 333px 0, 333px 32px, 0 32px);
+  clip-path: polygon(
+    0 0,
+    0 32px,
+    317px 32px,
+    320.22456px 31.67494px,
+    323.22792px 30.74264px,
+    325.94575px 29.26745px,
+    328.31371px 27.31371px,
+    330.26745px 24.94575px,
+    331.74264px 22.22792px,
+    332.67494px 19.22456px,
+    333px 16px,
+    332.67494px 12.77544px,
+    331.74264px 9.77208px,
+    330.26745px 7.05425px,
+    328.31371px 4.68629px,
+    325.94575px 2.73255px,
+    323.22792px 1.25736px,
+    320.22456px 0.32506px,
+    317px 0
+  );
+}
+.bar-outer.left .bar-purple {
+  transition-delay: 0;
+}
+.bar-outer.left {
+  transition-delay: 80ms;
+}
+.bar-outer.right .bar-purple {
+  transition-delay: 80ms;
+}
+.bar-outer.right {
+  transition-delay: 0;
+}
 
+.quote-box {
+    font-family: Brush Script;
+    text-align: center;
+    color: white;
+    margin: 2rem 0;
+}
 
+.quote-header {
+    padding-bottom: 1rem;
+    border-bottom: 2px solid;
+}
 
+#quote {
+    font-size: 1.5rem;
+}
 
-
-
-
-
+#cite {
+    font-size: .75rem;
+    text-align: right;
+}
 
 
 
