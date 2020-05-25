@@ -75,6 +75,7 @@ def num_of_card_transations(transactions: list):
                 num+=1
     return num
 
+
 # def num_of_direct_debt(transactions: list):
 #     num = 0
 #     for a in transactions:
@@ -101,16 +102,16 @@ def initial_weekly():
     
     ## TODO: edit to include credit cards
     for i, account in data.iterrows():        
-        weeks_transactions = client.Transactions.get(account['access_token'], str(start), str(end))['transactions']
-        
-        for transaction in weeks_transactions:
-            ## Plaid's ML Categorisation is not accurate for some transactions
-            ## Transfers between bank accounts will cancel eachother out
-            
-            #if 'transfer' not in transaction['transaction_code']:
-            # print(account['bank'])
-            # print(transaction['amount'])
-            total = total + transaction['amount']
+        if account['bank'] != 'Barclaycard':
+            weeks_transactions = client.Transactions.get(account['access_token'], str(start), str(end))['transactions']
+            for transaction in weeks_transactions:
+                ## Plaid's ML Categorisation is not accurate for some transactions
+                ## Transfers between bank accounts will cancel eachother out
+                
+                #if 'transfer' not in transaction['transaction_code']:
+                # print(account['bank'])
+                # print(transaction['amount'])
+                total = total + transaction['amount']
             
     return "£{:.2f}".format(abs(total))
 
@@ -120,15 +121,22 @@ def format_amount(value):
     else:
         return '-£{:,.2f}'.format(abs(value))
 
-def update_balances():
-    balances = {}
-    
-    for i, account in data.iterrows():        
-        if account['bank'] != 'Barclaycard':
+def current_account_balances():
+    return update_balances('checking')
 
+def savings_account_balances():
+    return update_balances('savings')
+
+def credit_card_balances():
+    return update_balances('credit card')
+
+def update_balances(subtype):
+    balances = {}
+    for i, account in data.iterrows():        
+        
+        if subtype == 'credit card':
             try:
                 #accounts = client.Accounts.balance.get(account['access_token'])['accounts']
-                
                 bank = client.Accounts.balance.get(account['access_token'])
                 accounts = bank['accounts']
                 ins_id = bank['item']['institution_id']
@@ -139,7 +147,7 @@ def update_balances():
                 pass
             
             for row in accounts:
-                if row['subtype'] == 'checking':
+                if row['subtype'] == subtype:
                     logo = client.Institutions.get_by_id(ins_id, _options={ 'include_display_data': True })['institution']['logo']
                     
                     if logo is None:
@@ -152,11 +160,43 @@ def update_balances():
     
                     balances[f"{account['bank']}"] = {'balance':row['balances']['current'],
                                                       'logo':logo}
+        else:              
+            if account['bank'] != 'Barclaycard':
+                try:
+                    #accounts = client.Accounts.balance.get(account['access_token'])['accounts']
+                    
+                    bank = client.Accounts.balance.get(account['access_token'])
+                    accounts = bank['accounts']
+                    ins_id = bank['item']['institution_id']
+                
+                except PlaidErrors.PlaidError as e:
+                    print(e)
+                    print(account['bank'])
+                    pass
+                
+                for row in accounts:
+                    if row['subtype'] == subtype:
+                        logo = client.Institutions.get_by_id(ins_id, _options={ 'include_display_data': True })['institution']['logo']
+                        
+                        if logo is None:
+                            path = 'assets/img/'
+                            folder = os.listdir(path)
+                            for image_filename in folder:
+                                if re.search(account['bank'], image_filename, re.IGNORECASE):
+                                    print(account['bank'])
+                                    print(image_filename)
+                                    
+                                    logo = base64.b64encode(open('{0}{1}'.format(path, image_filename), 'rb').read()).decode()
+                                    break
+        
+                        balances[f"{row['name']}"] = {'balance':row['balances']['current'],
+                                                          'logo':logo}
         # Update Starling bank data
-        starling_account.update_balance_data()
-        logo = client.Institutions.search('starling', _options={ 'include_display_data': True })['institutions'][0]['logo']
-        balances['Starling Bank'] = { 'balance':starling_account.cleared_balance,
-                                     'logo':logo }
+        if subtype == 'checking':
+            starling_account.update_balance_data()
+            logo = client.Institutions.search('starling', _options={ 'include_display_data': True })['institutions'][0]['logo']
+            balances['Starling Bank'] = { 'balance':starling_account.cleared_balance,
+                                         'logo':logo }
                                      
     return balances
 
@@ -344,13 +384,13 @@ def investments():
         ], style={"height": "150px", "overflowY": "scroll", "overflowX": "hidden",'margin-bottom':'5px' }, className='large-2'
         )
     
-def generate_balances_table():
+def generate_balances_table(balance_dict):
     
     #accounts = dict(sorted(update_balances().items(), key=lambda x: x[1], reverse=True))
     
     from collections import OrderedDict
 
-    accounts = OrderedDict(sorted(update_balances().items(), key=lambda i: i[1]['balance'], reverse=True))
+    accounts = OrderedDict(sorted(balance_dict.items(), key=lambda i: i[1]['balance'], reverse=True))
     
     # accounts = dict(sorted(balances.items(), key=lambda x: x['balance'], reverse=True))
 
@@ -441,7 +481,7 @@ def coop_check():
 
     return p1, p2, p3, p4, p5, p6, p7, p8, p9 
 
-p1, p2, p3, p4, p5, p6, p7, p8, p9 = coop_check()
+# p1, p2, p3, p4, p5, p6, p7, p8, p9 = coop_check()
 
 def barclays_check():
     
@@ -462,7 +502,7 @@ def barclays_check():
 
     return p11, p12, p13, p14, p15, p16
 
-p11, p12, p13, p14, p15, p16 = barclays_check()
+# p11, p12, p13, p14, p15, p16 = barclays_check()
 
 external_stylesheets = ['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP, 
                        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css']
@@ -496,11 +536,6 @@ app.index_string = '''
         <div></div>
         {%app_entry%}
         <footer> 
-            <script>
-                $(function() {
-                  $("[title]").tooltip({'placement': "bottom"});
-                });
-            </script>
           {%config%} 
           {%scripts%}
           {%renderer%}
@@ -558,9 +593,17 @@ weekly_card = [
 
 balance_card = [
     dbc.CardHeader("Current Accounts", style={'textAlign':'center', 'color':colors['text']}),
+    
+    
     dbc.CardBody(
         [
-            generate_balances_table()
+            html.Div([
+                dbc.Button("Savings Account", id="savings-btn"),
+                dbc.Button("Current Account", id="current-btn"),
+                dbc.Button("Credit Cards", id="credit-btn")
+            ], className="btn-group-sm center", style={"padding-bottom":"10px"}),
+            
+            dcc.Loading(html.Div(id='balance-container'),)
         ], 
     ),
 ]                    
@@ -582,7 +625,7 @@ progress1 = html.Div([
                             html.P("Pay in a minimum of £800", style={'margin':'0 auto', 'color': colors['text']}),
                         ], className="center"),
                         dbc.Col([
-                            dbc.Progress(id="a", children=[p2], color=p3, value=p1, striped=True, animated=True),                    
+                            dbc.Progress(id="a", striped=True, animated=True),                    
                         ]),
                     ], className="align-items-center"),
                     dbc.Row([
@@ -590,7 +633,7 @@ progress1 = html.Div([
                             html.P("Pay out at least four Direct Debits", style={'margin':'0 auto', 'color': colors['text']}),
                         ]),
                         dbc.Col([
-                            dbc.Progress(id="b", children=[p5], color=p6, value=p4,striped=True, animated=True),
+                            dbc.Progress(id="b", striped=True, animated=True),
                         ]),
                     ], className="align-items-center"),
                     dbc.Row([
@@ -598,7 +641,7 @@ progress1 = html.Div([
                             html.P("Number of card transactions", style={'margin':'0 auto', 'color': colors['text']}),
                         ]),
                         dbc.Col([
-                            dbc.Progress(id="c", children=[p8], color=p9, value=p7, striped=True, animated=True),
+                            dbc.Progress(id="c", striped=True, animated=True),
                         ]),
                     ], className="align-items-center"),       
     ], id="aaa")
@@ -609,7 +652,7 @@ progress2 = html.Div([
                             html.P("Pay in a minimum of £800", style={'margin':'0 auto', 'color': colors['text']}),
                         ], className="center"),
                         dbc.Col([
-                            dbc.Progress(id="d", children=[p12], color=p13, value=p11, striped=True, animated=True),                    
+                            dbc.Progress(id="d", striped=True, animated=True),                    
                         ]),
                     ], className="align-items-center"),
                     dbc.Row([
@@ -617,7 +660,7 @@ progress2 = html.Div([
                             html.P("Pay out at least two Direct Debits", style={'margin':'0 auto', 'color': colors['text']}),
                         ]),
                         dbc.Col([
-                            dbc.Progress(id="e", children=[p15], color=p16, value=p14,striped=True, animated=True),
+                            dbc.Progress(id="e", striped=True, animated=True),
                         ]),
                     ], className="align-items-center"),      
     ], id="bbb")
@@ -633,7 +676,7 @@ coop_card = [
     dbc.CardBody(
         [
             html.Div([
-                dbc.Button("Co-operative Bank", id="cooop", active=True),
+                dbc.Button("Co-operative Bank", id="cooop"),
                 dbc.Button("Barclays Bank", id="barclays")
             ], className="btn-group btn-group-sm center", style={"padding-bottom":"10px"}),
             
@@ -870,15 +913,27 @@ body = html.Div(
                                                                 
 @app.callback(Output('container-button-timestamp', 'children'),
               [Input('cooop', 'n_clicks'), Input('barclays', 'n_clicks')])
-def displayClick(btn1, btn2):
+def toggle_rewards(btn1, btn2):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     if 'cooop' in changed_id:
-        bars = progress1
+        return progress1
     elif 'barclays' in changed_id:
-        bars = progress2
+        return progress2
     else:
-        bars = progress1  
-    return html.Div(bars)
+        return progress1  
+
+@app.callback(Output('balance-container', 'children'),
+              [Input('savings-btn', 'n_clicks'), Input('current-btn', 'n_clicks'), 
+                Input('credit-btn', 'n_clicks')])
+def toggle_balances(btn1, btn2, btn3):
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    print([p['prop_id'] for p in dash.callback_context.triggered])
+    if 'savings-btn' in changed_id:
+        return generate_balances_table(savings_account_balances())
+    elif 'credit-btn' in changed_id:
+        return generate_balances_table(credit_card_balances())  
+    else:
+        return generate_balances_table(current_account_balances())
 
 @app.callback(
     Output("modal", "is_open"),
@@ -1230,6 +1285,22 @@ def update_baby_step_3(n):
     # only add text after 10% progress to ensure text isn't squashed too much
     return build_bar(current, 3900)
 
+@app.callback(
+    [Output("a", "value"), Output("a", "children"), Output("a", "color"),
+     Output("b", "value"), Output("b", "children"), Output("b", "color"),
+     Output("c", "value"), Output("c", "children"), Output("c", "color")],
+    [Input("progress-interval", "n_intervals")],
+)
+def update_coop_rewards(n):
+    return coop_check()
+
+@app.callback(
+    [Output("d", "value"), Output("d", "children"), Output("d", "color"),
+     Output("e", "value"), Output("e", "children"), Output("e", "color")],
+    [Input("progress-interval", "n_intervals")],
+)
+def update_barclay_rewards(n):
+    return barclays_check()
 
 @app.callback(
     [Output("progress-4", "value"), Output("progress-4", "children"), Output("progress-4", "color")],
@@ -1470,7 +1541,7 @@ def update_spend_graph(n):
     trace0 = go.Scatter(x=list(range(1,lastDay+1)), y=this_months_transactions,
                     mode='lines',
                     name='Spending',
-                    line = {'color':'#FFFFFF'},
+                    line = {'color':'#FFFFFF', 'shape': 'spline', 'smoothing': 1},
                     fill='tozeroy',
                     # hovertemplate =
                     #     '<i>Price</i>: $%{y:.2f}'+
@@ -1489,7 +1560,7 @@ def update_spend_graph(n):
     trace2 = go.Scatter(x=list(range(1,lastDay+1)), y=last_months_transactions,
                     mode='lines',
                     name='Last Month',
-                    line = {'color':'#261473'},
+                    line = {'color':'#261473', 'shape': 'spline', 'smoothing': 1},
                     fill='tozeroy'
                     )
     
