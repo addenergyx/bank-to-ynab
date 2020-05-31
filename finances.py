@@ -32,6 +32,7 @@ from random import randint, choice
 from server import server
 from components import Fab
 import locale
+from scraper import get_tesco_vouchers, get_iceland_balance
 
 data = get_tokens()
 
@@ -51,6 +52,7 @@ rotation = 0
 
 locale.setlocale(locale.LC_ALL, '')
 
+
 def progress_bar_color(progress):
     ## Changing progress bar colour
     if progress >= 100:
@@ -67,14 +69,14 @@ def get_some_transactions(access_token: str, start_date: str, end_date: str) -> 
     return client.Transactions.get(access_token, start_date, end_date)['transactions']
 
 def num_of_card_transations(transactions: list):
-    num = 0
     excluded_categories = ['Credit', 'Transfer']
-    for a in transactions:
-        if excluded_categories[0] not in a['category'] and excluded_categories[1] not in a['category']:
-            if a['amount'] < 0:
-                num+=1
-    return num
-
+    return sum(
+        1
+        for a in transactions
+        if excluded_categories[0] not in a['category']
+        and excluded_categories[1] not in a['category']
+        and a['amount'] < 0
+    )
 
 # def num_of_direct_debt(transactions: list):
 #     num = 0
@@ -129,6 +131,17 @@ def savings_account_balances():
 
 def credit_card_balances():
     return update_balances('credit card')
+
+# def vouchers_balances():
+    
+#     balance = {}
+    
+#     balance['Tesco'] = {'Tesco' : get_tesco_vouchers(),
+#                         'logo' : base64.b64encode(open('assets/img/merchants/tesco.png', 'rb').read()).decode()}
+#     balance['Iceland'] = {'Iceland' :  get_iceland_balance(),
+#                           'logo' : base64.b64encode(open('assets/img/merchants/iceland.jpg', 'rb').read()).decode()}
+    
+#     return balance 
 
 def update_balances(subtype):
     balances = {}
@@ -281,8 +294,10 @@ def generate_utilisation_table():
                     html.P(key, className='util-name'),
                     dbc.Progress(
                         [
-                            html.Div(className='marker amber-marker', title="25%"),
-                            html.Div(className='marker red-marker', title="75%"),
+                            html.Div(className='marker amber-marker', id=f"amber-tooltip-target-{key}", title="25%"),
+                            html.Div(className='marker red-marker', id=f"red-tooltip-target-{key}", title="75%"),
+                            dbc.Tooltip("25%", target=f"amber-tooltip-target-{key}", placement='top'),
+                            dbc.Tooltip("75%", target=f"red-tooltip-target-{key}", placement='top')
                         ], value=value['util'], className='util-progress', color=util_bar_color(value['util'])
                     ),
                     html.P( f"{locale.currency(value['debt'])} of {locale.currency(value['limit'])} used", className='util-usage'),
@@ -481,7 +496,6 @@ def coop_check():
 
     return p1, p2, p3, p4, p5, p6, p7, p8, p9 
 
-# p1, p2, p3, p4, p5, p6, p7, p8, p9 = coop_check()
 
 def barclays_check():
     
@@ -502,14 +516,13 @@ def barclays_check():
 
     return p11, p12, p13, p14, p15, p16
 
-# p11, p12, p13, p14, p15, p16 = barclays_check()
 
 external_stylesheets = ['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP, 
                        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css']
 
 #external_scripts = [
 
-app = dash.Dash(name='finance', server=server, url_base_pathname='/finance/', external_stylesheets=external_stylesheets, 
+app = dash.Dash(name='finance', server=server, url_base_pathname='/finance/', external_stylesheets=external_stylesheets, assets_ignore='fitness.css',
                 meta_tags=[
                     { 'name':'viewport','content':'width=device-width, initial-scale=1' },## Fixes media query not showing
                     {
@@ -600,7 +613,8 @@ balance_card = [
             html.Div([
                 dbc.Button("Savings Account", id="savings-btn"),
                 dbc.Button("Current Account", id="current-btn"),
-                dbc.Button("Credit Cards", id="credit-btn")
+                dbc.Button("Credit Cards", id="credit-btn"),
+                #dbc.Button("Vouchers", id="vouchers-btn")
             ], className="btn-group-sm center", style={"padding-bottom":"10px"}),
             
             dcc.Loading(html.Div(id='balance-container'),)
@@ -703,13 +717,16 @@ coop_card = [
 baby_step_1 = html.Div([
                 dbc.Row([
                     dbc.Col([
+                        html.Span(className='fas fa-money-bill icon baby-steps-icon')
+                    ], width=1),
+                    dbc.Col([
                         html.P("£1000 Emergency Fund", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-1", color="primary", striped=True, animated=True),
                     ]),
                 ], className="align-items-center"),
-                html.P("helloooooooooooooooooooooooooooooooo", id='hidden-baby-step-1', hidden=False, style={'color': colors['text'] }),
+                html.P("helloooooooooooooooooooooooooooooooo", id='hidden-baby-step-1', hidden=True, style={'color': colors['text'] }),
             ], id='baby-step-1', className="baby-step-spacing")     
 
 #progress, colour = initial_baby_step_2()
@@ -717,17 +734,23 @@ baby_step_1 = html.Div([
 baby_step_2 = html.Div([
                 dbc.Row([
                     dbc.Col([
+                        html.Span(className='far fa-credit-card icon baby-steps-icon')
+                    ], width=1),
+                    dbc.Col([
                         html.P("Pay Off Debt", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-2", color="primary", striped=True, animated=True),
                     ]),
                 ], className="align-items-center"),
-                html.Div(generate_utilisation_table(), id='hidden-baby-step-2', hidden=False),
+                html.Div(generate_utilisation_table(), id='hidden-baby-step-2', hidden=True),
             ], id='baby-step-2', className="baby-step-spacing")
 
 baby_step_3 = html.Div([
                 dbc.Row([
+                    dbc.Col([
+                        html.Span(className='fas fa-piggy-bank icon baby-steps-icon')
+                    ], width=1),
                     dbc.Col([
                         html.P("3 Month Emergency Fund", className='balances'),
                     ]),
@@ -740,17 +763,23 @@ baby_step_3 = html.Div([
 baby_step_4 = html.Div([
                 dbc.Row([
                     dbc.Col([
+                        html.Span(className='fa fa-signal icon baby-steps-icon')
+                    ], width=1),
+                    dbc.Col([
                         html.P("Invest 15%", className='balances'),
                     ]),
                     dbc.Col([
                         dbc.Progress(id="progress-4", color="primary", striped=True, animated=True),
                     ]),
                 ], className="align-items-center"),
-                html.Div( investments(), id='hidden-baby-step-4', hidden=False),
+                html.Div( investments(), id='hidden-baby-step-4', hidden=True),
             ], id='baby-step-4', className="baby-step-spacing")
 
 baby_step_5 = html.Div([
                 dbc.Row([
+                    dbc.Col([
+                        html.Span(className='fas fa-graduation-cap icon baby-steps-icon')
+                    ], width=1),
                     dbc.Col([
                         html.P("Kids University fund", className='balances'),
                     ]),
@@ -763,6 +792,9 @@ baby_step_5 = html.Div([
 baby_step_6 = html.Div([
                 dbc.Row([
                     dbc.Col([
+                        html.Span(className='fas fa-home icon baby-steps-icon')
+                    ], width=1),
+                    dbc.Col([
                         html.P("Pay Off Mortgage", className='balances'),
                     ]),
                     dbc.Col([
@@ -773,6 +805,9 @@ baby_step_6 = html.Div([
 
 baby_step_7 = html.Div([
                 dbc.Row([
+                    dbc.Col([
+                        html.Span(className='far fa-heart icon baby-steps-icon')
+                    ], width=1),
                     dbc.Col([
                         html.P("Build Wealth And Give", className='balances'),
                     ]),
@@ -857,7 +892,7 @@ body = html.Div(
                       # dbc.Col(dbc.Card(weekly_card, className='card-style', 
                       #                  style={'background-image': 'url(\'assets/img/sand background.jpg\')',
                       #                         'background-size': 'cover', 'background-position': 'center'}), width=12, lg=4),
-                      dbc.Col(dbc.Card(categorises_card, className='card-style'), width=12, lg=4),
+                      dbc.Col(dbc.Card(categorises_card, className='card-style', id="facts-card"), width=12, lg=4),
                     ],
                     ),
                     dbc.Row(
@@ -924,14 +959,18 @@ def toggle_rewards(btn1, btn2):
 
 @app.callback(Output('balance-container', 'children'),
               [Input('savings-btn', 'n_clicks'), Input('current-btn', 'n_clicks'), 
-                Input('credit-btn', 'n_clicks')])
-def toggle_balances(btn1, btn2, btn3):
+               Input('credit-btn', 'n_clicks'), #Input('vouchers-btn', 'n_clicks')
+               ])
+def toggle_balances(btn1, btn2, btn3#, btn4
+                    ):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
     print([p['prop_id'] for p in dash.callback_context.triggered])
     if 'savings-btn' in changed_id:
         return generate_balances_table(savings_account_balances())
     elif 'credit-btn' in changed_id:
-        return generate_balances_table(credit_card_balances())  
+        return generate_balances_table(credit_card_balances())
+    # elif 'vouchers-btn' in changed_id:
+    #     return generate_balances_table(vouchers_balances())
     else:
         return generate_balances_table(current_account_balances())
 
@@ -956,7 +995,14 @@ def toggle_modal(n1, n2, is_open):
 #     if state is True:
 #         return False
 #     return True
-                                                              
+
+def clicks(n_click, state):
+    if n_click is None:
+        return True
+    if state is True:
+        return False
+    return True
+
 @app.callback(
     [Output("see-more", "hidden"), Output("transactions", "hidden")],
     [Input("see-more", "n_clicks"), Input("transactions", "n_clicks")],
@@ -977,10 +1023,8 @@ def toggle_see_more(n_click, n_click2, state, state2):
     [Input("baby-step-1", "n_clicks")],
     [State("hidden-baby-step-1", "hidden")],
 )
-def toggle_step(n_click, state):
-    if state is True:
-        return False
-    return True
+def toggle_step_1(n_click, state):
+    return clicks(n_click, state)
 
 @app.callback(
     Output("hidden-baby-step-4", "hidden"),
@@ -988,11 +1032,7 @@ def toggle_step(n_click, state):
     [State("hidden-baby-step-4", "hidden")],
 )
 def toggle_step_4(n_click, state):
-    if n_click == 0:
-        return True
-    if state is True:
-        return False
-    return True
+    return clicks(n_click, state)
 
 @app.callback(
     Output("hidden-baby-step-2", "hidden"),
@@ -1000,11 +1040,7 @@ def toggle_step_4(n_click, state):
     [State("hidden-baby-step-2", "hidden")],
 )
 def toggle_step_2(n_click, state):
-    if n_click == 0:
-        return True
-    if state is True:
-        return False
-    return True
+    return clicks(n_click, state)
 
 @app.callback(Output("weekly-total","children"), [Input("progress-interval", "n_intervals")])
 def update_weekly(n):
@@ -1017,13 +1053,10 @@ def update_facts(n):
     global rotation
     rotation = rotation + 1
     
-    
     today = datetime.now().date()
-    
     
     if rotation == 2:
         
-    
         ## Investment in pizza
         investment = 0
         
@@ -1100,7 +1133,7 @@ def update_facts(n):
         fig = px.pie(merch_freq, values='Count', names='Payee')
         
         fig.update_layout(
-            height=250,
+            height=175,
             showlegend=False,
             margin=dict(
                 l=0,
@@ -1195,7 +1228,7 @@ def update_facts(n):
 #     return progress, f"{progress} %" if progress >= 10 else "", num, progress_bar_color(progress)
 
 @app.callback(
-    [Output("quote", "children"), Output("cite", "children")],
+    [Output("quote", "children"), Output("cite", "children"), Output("quotes-interval", "interval")],
     [Input("quotes-interval", "n_intervals")],
 )
 def get_quote(n):
@@ -1206,7 +1239,7 @@ def get_quote(n):
     
     ## User agent gives browser information
     ## Helps pretend to the site you're a user and not a bot
-    headers = {"User-Agent":'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36'}
+    headers = {"User-Agent":'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
     
     page = requests.get(URL, headers=headers)
     
@@ -1220,7 +1253,12 @@ def get_quote(n):
     
     quote, cite = choice(list(quotes_dict.items()))
 
-    return quote, cite
+    words = len(re.findall(r'\w+', quote)) 
+
+    ## average reading speed of most adults is around 200 to 250 words per minute.    
+    interval = words/200 * 60000
+
+    return quote, cite, 30000 if 30000 > interval else interval
 
 @app.callback(
     [Output("progress-1", "value"), Output("progress-1", "children"), Output("progress-1", "color")],
