@@ -4,7 +4,7 @@ The motivation behind this project came about from me wanted to have a centralis
 
 By creating this dashboard to track my finances, fitness and investments I have consolidated roughly over 6 apps/websites into 1 including many banking and fitness apps. 
 
-Made with Python 3, Dash/Flask, and PostgreSQL.
+Made with Python 3, Dash/Flask, PostgreSQL and serveral API's and/or [Selenium](https://github.com/SeleniumHQ/selenium/tree/master/py)/[BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/) to scrape my data when a public api isn't provided.
 
 This repo also contains util scripts that automatically importing bank transactions to YNAB, aggregates statements from my email and sends weekly digests to me via cron jobs on a raspberry pi.
 
