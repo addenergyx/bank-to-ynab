@@ -1,0 +1,348 @@
+html,body {
+    width: 100%;
+    height: 100vh;
+    margin: 0px;
+    padding: 0px;
+    overflow-y: hidden;
+    overflow-x: hidden;
+}
+
+/* Fitness CSS */
+
+.row {
+    margin: 0;
+}
+
+#side-panel, #main-panel {
+    padding-top: 80px;
+}
+
+#side-panel {
+    box-shadow:  12px 12px 24px #cfd1d5, 
+                 -12px -12px 24px #ffffff;
+    background-color: #F1F2F6;
+    height: 100vh;
+    border-radius: 50px;
+    margin-right: 50px;
+}
+
+#main-panel {
+    overflow-y: scroll;
+    height: 100vh;
+}
+
+/*
+#background {
+    height: 100vh;
+}
+*/
+
+.summary-card {
+    border-radius: 30px;
+    border: 0px;
+    color: black;
+    height: 100%;
+    background: #F4F6FA;
+    box-shadow:  11px 11px 22px #d7d8dc, 
+                 -11px -11px 22px #ffffff; 
+}
+
+.summary-card p, .summary-card H2 {
+    margin: 0px;
+}
+
+.graph {
+    float: right;
+}
+
+.title {
+    color: #BBBDC2;
+}
+
+.diff-text {
+    text-align: right;
+}
+
+/* Remove mode bar from all charts */
+.modebar {
+    display: none;
+}
+
+#data-fig .main-svg, #inches-fig .main-svg {
+    border-radius: 30px;
+}
+
+#side-data-card {
+    padding: 20px;
+    height: 500px;
+    transition: 3s;
+
+/*
+    background-image: linear-gradient(to bottom right, #971d1d, #cd2727);
+    box-shadow: inset 12px 12px 24px #971d1d, 
+                inset -12px -12px 24px #cd2727;
+
+    background-image: linear-gradient(to bottom right, #0054FE, #0061EB);
+    box-shadow: inset 12px 12px 24px #0044a5, 
+                inset -12px -12px 24px #007eff;  
+*/
+    
+}
+
+/*absolute searches for the nearest relative parent.*/
+#inches-fig {
+    position: relative;
+    left: 0px;
+    bottom: -15px;
+}
+
+#measurements-dropdown {
+    padding: 50px 50px 0px;
+}
+
+@media only screen and (max-width: 600px) {
+    #side-data-card {
+        margin-top: 20px;
+    }
+}
+
+.progress-bar, .progress {
+    border-radius: 50px;
+}
+
+#progress-bar-proteins {
+    background: #a8c8ff;
+    box-shadow: inset -3px 3px 6px #7e96bf, 
+                inset 3px -3px 6px #d2faff;
+}
+
+#progress-bar-fats {
+    background: #ff7aff;
+    box-shadow: inset -7px 7px 14px #bf6b6b, 
+                inset 7px -7px 14px #ffb3b3;
+}
+
+#progress-bar-fats .progress-bar {
+    background-color: red! important;
+}
+
+#progress-bar-carbs .progress-bar {
+    background-color: orange !important;
+}
+
+#progress-bar-carbs {
+    background: #ffdb99;
+    box-shadow: inset -7px 7px 14px #bfa473, 
+                inset 7px -7px 14px #ffffbf;
+}
+
+@media only screen and (max-width: 900px) {
+    #background {
+        padding: 10px;
+    }
+}
+
+@media only screen and (max-width: 600px) {
+    html,body {
+        overflow-y: auto;
+    }
+    #side-panel {
+        height: 100%;
+    }
+    #main-panel {
+        overflow-y:hidden;
+        height: 100%;
+    }
+}
+
+#food-table {
+    height: 100px;
+    overflow-y: scroll;
+}
+
+#table-block {
+    height: 100px;
+    overflow-y: scroll;    
+}
+
+#activity-card .summary-card:hover {
+    background-color: blueviolet;
+    transition: 1s;
+}
+
+#weight-card .summary-card:hover {
+    background-color: #b22222;
+    transition: 1s;
+}
+
+#bf-card .summary-card:hover {
+    background-color: #0055FC;
+    transition: 1s;
+}
+
+#calories-card .summary-card:hover {
+    background-color: #FFA500;
+    transition: 1s;
+}
+
+#calories-card .summary-card:hover p, #calories-card .summary-card:hover h2 {
+    color: black;
+    transition: 1s;
+}
+
+::-webkit-scrollbar {
+    width: 0px;  /* Remove scrollbar space */
+    background: transparent;  /* Optional: just make scrollbar invisible */
+}
+/* Optional: show position indicator in red */
+::-webkit-scrollbar-thumb {
+    background: #FF0000;
+}
+
+
+table.transaction-table {
+    border: 0;
+    width: 100%;
+}
+
+p.balances {
+    color: #FFFFFF;
+    margin: auto;
+}
+
+table.transaction-table caption {
+    font-size: 1.3em;
+    color: white;
+}
+
+table.transaction-table tr {
+    border-bottom: 3px solid #ddd;
+    display: block;
+    margin-bottom: .625em;
+    color: white;
+}
+
+table.transaction-table td {
+    border-bottom: 1px solid #ddd;
+    display: block;
+    font-size: .8em;
+    text-align: right;
+}
+
+table.transaction-table td::before {
+    /*
+    * aria-label has no advantage, it won't be read inside a table
+    content: attr(aria-label);
+    */
+    content: attr(data-label);
+    float: left;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+table.transaction-table td:last-child {
+    border-bottom: 0;
+}
+
+.table-block {
+    height: 50%;
+    overflow-y: scroll;
+}
+
+/*
+.act-table-block {
+    height: 85%;
+    overflow-y: scroll;
+}
+*/
+
+@media only screen and (max-width: 600px) {
+    .table-block {
+        height: 45%;
+    }
+    
+/*
+    .act-table-block {
+        height: 75%;
+        overflow-y: scroll;
+    }
+*/
+    
+}
+
+.data-row {
+    margin-bottom: 2rem;
+}
+
+/*
+.transaction-table {
+    height: 55%;
+    overflow-y: scroll;
+}
+*/
+
+#weight-card, {
+  cursor: pointer;
+}
+
+/* Apply a dark color scheme */
+@media (prefers-color-scheme: dark) {
+
+    #side-panel label, #side-panel text {
+        color: white !important;
+    }
+    
+    #side-panel {
+        background-color: #121212;
+        box-shadow:  12px 12px 24px #0e0e0e, 
+                     -12px -12px 24px #171717;
+    }
+    
+    .summary-card {
+        border-radius: 30px;
+        border: 0px;
+        color: white;
+        height: 100%;
+        background: #121212;
+        box-shadow:  11px 11px 22px #0e0e0e, 
+                     -11px -11px 22px #171717; 
+    }
+
+    .summary-card p {
+        margin: 0px;
+    }
+
+    .summary-card H2 {
+        margin: 0px;
+    }
+    
+    #main-panel, #background, body {
+        background-color: #121212;
+    }
+    
+    #macros-title, h1, h2 {
+        color: white;
+    }
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
