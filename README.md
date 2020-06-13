@@ -8,9 +8,10 @@ Made with Python 3, Dash/Flask, PostgreSQL and serveral API's and/or [Selenium](
 
 This repo also contains util scripts that automatically importing bank transactions to YNAB, aggregates statements from my email and sends weekly digests to me via cron jobs on a raspberry pi.
 
-![alt text](https://i.imgur.com/8gu92qa.jpg "Logo Title Text 1")
-![alt text](https://i.imgur.com/rSgHcDY.jpg "Logo Title Text 1")
-![alt text](https://i.imgur.com/IQ53QRW.jpg "Logo Title Text 1")
+![Body Fat](https://i.imgur.com/8vKcXgu.jpg "Logo Title Text 1")
+![Weight](https://i.imgur.com/4rfBdha.jpg "Logo Title Text 1")
+![Activity](https://i.imgur.com/xqHQkWE.jpg)
+![Calories](https://i.imgur.com/sWnmab5.jpg)
 
 Designed based on the mobile-first approach as I will mostly use it on mobile to quickly check my stats.
 
