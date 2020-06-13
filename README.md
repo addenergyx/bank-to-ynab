@@ -22,6 +22,6 @@ The theme also switches between light and dark based on the user's display setti
 ![alt text](https://i.imgur.com/TgFDKth.jpg "Logo Title Text 1")
 ![alt text](https://i.imgur.com/TYg2Qau.jpg "Logo Title Text 1")
 
-## Helpful Tips
+## Key Notes
 
 Used a 7 day moving average to analyze it weight loss/gain. ploting daily weight on an average curve smoothens out the daily fluctuations in weight. This has many benefits such as showing weight trends and lessens the daily fluctuations. I feel seeing an overall upward/downward trend based on your goal is much more inportant then individual points. Many factors can influence a weigh in such as how much extra water you retained last night because you ate something salty. Espically as I can currently trying alternative day fasting I'll natuarlly see big diferences in my fasted vs non-fasted weight-ins. A simply moving average helps show whether this approach is working. 
