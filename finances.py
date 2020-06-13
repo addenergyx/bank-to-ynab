@@ -99,22 +99,22 @@ def initial_weekly():
     today = datetime.now().date()
     start = today - timedelta(days=today.weekday())
     end = start + timedelta(days=6)
-    
+
     total = 0
-    
+
     ## TODO: edit to include credit cards
     for i, account in data.iterrows():        
         if account['bank'] != 'Barclaycard':
             weeks_transactions = client.Transactions.get(account['access_token'], str(start), str(end))['transactions']
             for transaction in weeks_transactions:
-                ## Plaid's ML Categorisation is not accurate for some transactions
-                ## Transfers between bank accounts will cancel eachother out
-                
+                            ## Plaid's ML Categorisation is not accurate for some transactions
+                            ## Transfers between bank accounts will cancel eachother out
+                            
                 #if 'transfer' not in transaction['transaction_code']:
-                # print(account['bank'])
-                # print(transaction['amount'])
-                total = total + transaction['amount']
-            
+                                # print(account['bank'])
+                                # print(transaction['amount'])
+                total += transaction['amount']
+
     return "£{:.2f}".format(abs(total))
 
 def format_amount(value):
@@ -146,23 +146,21 @@ def credit_card_balances():
 def update_balances(subtype):
     balances = {}
     for i, account in data.iterrows():        
-        
+            
         if subtype == 'credit card':
             try:
                 #accounts = client.Accounts.balance.get(account['access_token'])['accounts']
                 bank = client.Accounts.balance.get(account['access_token'])
                 accounts = bank['accounts']
                 ins_id = bank['item']['institution_id']
-            
+
             except PlaidErrors.PlaidError as e:
                 print(e)
                 print(account['bank'])
-                pass
-            
             for row in accounts:
                 if row['subtype'] == subtype:
                     logo = client.Institutions.get_by_id(ins_id, _options={ 'include_display_data': True })['institution']['logo']
-                    
+
                     if logo is None:
                         path = 'assets/img/'
                         folder = os.listdir(path)
@@ -170,27 +168,25 @@ def update_balances(subtype):
                             if re.search(account['bank'], image_filename, re.IGNORECASE):
                                 logo = base64.b64encode(open('{0}{1}'.format(path, image_filename), 'rb').read()).decode()
                                 break
-    
+
                     balances[f"{account['bank']}"] = {'balance':row['balances']['current'],
                                                       'logo':logo}
         else:              
             if account['bank'] != 'Barclaycard':
                 try:
                     #accounts = client.Accounts.balance.get(account['access_token'])['accounts']
-                    
+
                     bank = client.Accounts.balance.get(account['access_token'])
                     accounts = bank['accounts']
                     ins_id = bank['item']['institution_id']
-                
+
                 except PlaidErrors.PlaidError as e:
                     print(e)
                     print(account['bank'])
-                    pass
-                
                 for row in accounts:
                     if row['subtype'] == subtype:
                         logo = client.Institutions.get_by_id(ins_id, _options={ 'include_display_data': True })['institution']['logo']
-                        
+
                         if logo is None:
                             path = 'assets/img/'
                             folder = os.listdir(path)
@@ -198,10 +194,10 @@ def update_balances(subtype):
                                 if re.search(account['bank'], image_filename, re.IGNORECASE):
                                     print(account['bank'])
                                     print(image_filename)
-                                    
+
                                     logo = base64.b64encode(open('{0}{1}'.format(path, image_filename), 'rb').read()).decode()
                                     break
-        
+
                         balances[f"{row['name']}"] = {'balance':row['balances']['current'],
                                                           'logo':logo}
         # Update Starling bank data
@@ -210,39 +206,38 @@ def update_balances(subtype):
             logo = client.Institutions.search('starling', _options={ 'include_display_data': True })['institutions'][0]['logo']
             balances['Starling Bank'] = { 'balance':starling_account.cleared_balance,
                                          'logo':logo }
-                                     
+
     return balances
 
 def total_debt():
     
     debt = 0
     limit = 0
-    
+
     for i, account in data.iterrows():        
         try:
             accounts = client.Accounts.balance.get(account['access_token'])['accounts']
         except PlaidErrors.PlaidError as e:
             print(account['bank'])
             print(e)
-            pass
         for row in accounts:
             if row['subtype'] == 'credit card':
                 # print(account['bank'])
-                # print(row['subtype'])
-                # print(row['balances']['current'])
-                # print(row['balances']['limit'])
-                # print('---------------')
-                debt = debt + row['balances']['current']
-                limit = limit + row['balances']['limit']
+                                # print(row['subtype'])
+                                # print(row['balances']['current'])
+                                # print(row['balances']['limit'])
+                                # print('---------------')
+                debt += row['balances']['current']
+                limit += row['balances']['limit']
             elif row['balances']['current'] < 0:
                 # print(account['bank'])
-                # print(row['subtype'])
-                # print(row['balances']['current'])
-                # print(row['balances']['limit'])
-                # print('---------------')
-                debt = debt - row['balances']['current']
-                limit = limit + row['balances']['limit']
-        
+                                # print(row['subtype'])
+                                # print(row['balances']['current'])
+                                # print(row['balances']['limit'])
+                                # print('---------------')
+                debt -= row['balances']['current']
+                limit += row['balances']['limit']
+
     return debt, limit
 
 def util_bar_color(progress):
@@ -258,14 +253,13 @@ def util_bar_color(progress):
 def credit_utilisation():
     
     util_dict = {}
-    
+
     for i, account in data.iterrows():        
         try:
             accounts = client.Accounts.balance.get(account['access_token'])['accounts']
         except PlaidErrors.PlaidError as e:
             print(account['bank'])
             print(e)
-            pass
         for row in accounts:
             # print(account['bank'])
             # print(row['subtype'])
@@ -274,9 +268,9 @@ def credit_utilisation():
                 debt = row['balances']['current']
                 limit = row['balances']['limit']
                 util = int((debt/limit)*100)
-                
+
                 util_dict[account['bank']] = {'debt':debt, 'limit':limit, 'util':util}
-                        
+
             ## Only want credit card utilisation    
             # elif row['balances']['current'] < 0:
             #     debt = debt - row['balances']['current']
@@ -446,18 +440,16 @@ def generate_balances_table(balance_dict):
 ## Plaid categorises direct debits for each bank differently
     
 def num_of_direct_debt(transactions: list):
-    num = 0
-    for a in transactions:
-        if 'Debit' in a['category'] and a['amount'] > 0:
-            num+=1
-    return num
+    return sum(
+        1 for a in transactions if 'Debit' in a['category'] and a['amount'] > 0
+    )
 
 def num_of_direct_debt_coop(transactions: list):
-    num = 0
-    for a in transactions:
-        if 'special' in a['transaction_type'] and a['amount'] > 0:
-            num+=1
-    return num
+    return sum(
+        1
+        for a in transactions
+        if 'special' in a['transaction_type'] and a['amount'] > 0
+    )
 
 def minimum_payment(transactions: list):
     
@@ -950,12 +942,10 @@ body = html.Div(
               [Input('cooop', 'n_clicks'), Input('barclays', 'n_clicks')])
 def toggle_rewards(btn1, btn2):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
-    if 'cooop' in changed_id:
+    if 'cooop' in changed_id or 'barclays' not in changed_id:
         return progress1
-    elif 'barclays' in changed_id:
-        return progress2
     else:
-        return progress1  
+        return progress2  
 
 @app.callback(Output('balance-container', 'children'),
               [Input('savings-btn', 'n_clicks'), Input('current-btn', 'n_clicks'), 
@@ -999,9 +989,7 @@ def toggle_modal(n1, n2, is_open):
 def clicks(n_click, state):
     if n_click is None:
         return True
-    if state is True:
-        return False
-    return True
+    return state is not True
 
 @app.callback(
     [Output("see-more", "hidden"), Output("transactions", "hidden")],
@@ -1236,21 +1224,21 @@ def get_quote(n):
     url_page_number = randint(1,8)
 
     URL = f'https://www.goodreads.com/quotes/tag/investing?page={url_page_number}'
-    
+
     ## User agent gives browser information
     ## Helps pretend to the site you're a user and not a bot
     headers = {"User-Agent":'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
-    
+
     page = requests.get(URL, headers=headers)
-    
+
     soup = BeautifulSoup(page.content, 'html.parser')
-    
+
     quotes_dict = {}
     for quote, cite in zip(soup.findAll('div',{'class':'quoteText'}), soup.findAll('span',{'class':'authorOrTitle'})):
         a = re.search('“(.*)”', quote.get_text().strip())
         quote = a.group(0)
         quotes_dict[quote] = cite.get_text().strip()[:-1]
-    
+
     quote, cite = choice(list(quotes_dict.items()))
 
     words = len(re.findall(r'\w+', quote)) 
@@ -1258,7 +1246,7 @@ def get_quote(n):
     ## average reading speed of most adults is around 200 to 250 words per minute.    
     interval = words/200 * 60000
 
-    return quote, cite, 30000 if 30000 > interval else interval
+    return quote, cite, 30000 if interval < 30000 else interval
 
 @app.callback(
     [Output("progress-1", "value"), Output("progress-1", "children"), Output("progress-1", "color")],
@@ -1658,10 +1646,9 @@ def update_spend_graph(n):
     return fig
                                                            
 def Homepage():
-    layout = html.Div([
-        body,
-    ], style={'backgroundColor': colors['background']}, className='layzout')
-    return layout
+    return html.Div([
+            body,
+        ], style={'backgroundColor': colors['background']}, className='layzout')
 
 app.layout = Homepage()
 
