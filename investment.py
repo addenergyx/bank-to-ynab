@@ -98,12 +98,17 @@ for column in portfolio.columns:
 
 portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], format='%d-%m-%Y') #pd.to_datetime(portfolio["Trading day"]).dt.strftime('%m-%d-%Y')
 
-portfolio.sort_values('Trading day', inplace=True, ascending=False)
+## For getting ROI Dataframe needs to be ordered in ascending order and grouped by Ticker Symbol
+portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
 
 # # Datetime not compatible with excel
-# portfolio['Trading u'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
+portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
 
+# Remove unnecessary ISN number 
 portfolio['Ticker Symbol'] = portfolio['Ticker Symbol'].str.split('/', 1).str[0]
+
+# Airbus changed their ticker symbol
+portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
 '''
 Things to take note when creating a Transactions Portfolio for Simply Wall St:
@@ -196,6 +201,9 @@ a = df[df.Type == 'Sell']
 
 
 for ii, sell_row in a.iterrows():
+    
+    ## currently does not take into account fees 
+    ## should use total cost column instead later
     
     share_lis = df['Shares'][:ii+1].tolist()
     price_lis = df['Price'][:ii+1].tolist()
