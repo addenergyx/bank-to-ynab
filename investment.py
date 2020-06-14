@@ -93,8 +93,19 @@ portfolio = pd.DataFrame(data, columns=column_headers)
 # ace.columns = ace.columns.str[4:]
 # ace.drop('No', axis=1, inplace=True)
 
-for column in portfolio.columns:
-    portfolio[column] = portfolio[column].str.rstrip('GBP') 
+# for column in portfolio.columns:
+#     portfolio[column] = portfolio[column].str.rstrip('GBP') 
+
+float_values = ['Shares', 'Price', 'Total amount','Commission', 'Charges and fees','Total cost', 'Exchange rate']
+
+for column in float_values:
+    portfolio[column] = portfolio[column].str.rstrip('GBP').astype(float)
+
+# Remove unnecessary ISN number 
+portfolio['Ticker Symbol'] = portfolio['Ticker Symbol'].str.split('/', 1).str[0]
+
+# Airbus changed their ticker symbol
+portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
 portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], format='%d-%m-%Y') #pd.to_datetime(portfolio["Trading day"]).dt.strftime('%m-%d-%Y')
 
@@ -104,11 +115,6 @@ portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=Tr
 # # Datetime not compatible with excel
 portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
 
-# Remove unnecessary ISN number 
-portfolio['Ticker Symbol'] = portfolio['Ticker Symbol'].str.split('/', 1).str[0]
-
-# Airbus changed their ticker symbol
-portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
 '''
 Things to take note when creating a Transactions Portfolio for Simply Wall St:
@@ -124,8 +130,8 @@ https://support.simplywall.st/hc/en-us/articles/360001480916-How-to-Create-a-Por
 simply_wall_st = portfolio.filter(['Ticker Symbol', 'Trading day', 'Shares', 'Price', 'Total amount', 'Type', 'Exchange rate'], axis=1)
 
 #simply_wall_st['Total amount'] = simply_wall_st['Total amount'].astype(float)
-simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].astype(float)
-simply_wall_st['Price'] = simply_wall_st['Price'].astype(float)
+# simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].astype(float)
+# simply_wall_st['Price'] = simply_wall_st['Price'].astype(float)
 
 simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].replace(0.01, 1)
 
@@ -133,8 +139,6 @@ simply_wall_st['Price'] = simply_wall_st['Price'] / simply_wall_st['Exchange rat
 
 simply_wall_st.to_csv('Simply Wall St Portfolio.csv', index=False)
 portfolio.to_csv('Investment Portfolio.csv', index=False )
-
-
 
 # import pandas as pd
 # df = pd.read_csv('test.csv')
@@ -193,78 +197,96 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 #         else :
 #             print('remove share from weighted')
 
+all_holdings = portfolio['Ticker Symbol'].unique()
 
 import pandas as pd
-df = pd.read_csv('test.csv')
 
-a = df[df.Type == 'Sell']
+returns_dict = {}
+total_returns = 0
 
-
-for ii, sell_row in a.iterrows():
+for symbol in all_holdings:
     
-    ## currently does not take into account fees 
-    ## should use total cost column instead later
+    df = portfolio[portfolio['Ticker Symbol'] == symbol]
     
-    share_lis = df['Shares'][:ii+1].tolist()
-    price_lis = df['Price'][:ii+1].tolist()
-    type_lis = df['Type'][:ii+1].tolist()
+    df = df.reset_index().drop('index', axis=1)
     
-    #print(ii)
-    # print(share_lis)
-    # print(type_lis)
-    # print(type_lis)
-
-    c = 0
-    x = 0
-    holdings = 0
-    average = 0
-
-    for s, p, t in list(zip(share_lis, price_lis, type_lis)):
+    #df = pd.read_csv('test.csv')
+    
+    a = df[df.Type == 'Sell']
+    
+    print(f'-------{symbol}-------')
+    
+    for ii, sell_row in a.iterrows():
+        
+        ## currently does not take into account fees 
+        ## should use total cost column instead later
+        
+        share_lis = df['Shares'][:ii+1].tolist()
+        price_lis = df['Price'][:ii+1].tolist()
+        type_lis = df['Type'][:ii+1].tolist()
+        
+        fees_lis = df['Charges and fees'][:ii+1].tolist()
+        
+        #print(ii)
+        # print(share_lis)
+        # print(type_lis)
+        # print(type_lis)
+    
+        c = x = holdings = average = 0
                 
-        if t == 'Buy':
-            c += s*p
-            holdings += s
-            average = c / holdings
-            print(f'Buy Order: {s} @ {p}')
-            print(f'Buy Order New Average: {holdings} @ {average}')
-        
-        ## Selling stock
-        
-        else:
+        for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
             
-            ## if ii == len(share_lis): <- Doesn't work, This is probably because in the Python 3.x, 
-            ## zip returns a generator object. This object is not a list
-            ## https://stackoverflow.com/questions/31011631/python-2-3-object-of-type-zip-has-no-len/38045805
-
-            if ii == x:
-                
+            if t == 'Buy':
+                c += s*p
+                holdings += s
                 average = c / holdings
-                gain_loss = p - average
-                total_profit = gain_loss * s
-                print(f'Current Holdings Average: {holdings} @ {average}')
-                print(f'Final Sell Order: {s} @ {p}')
-                print(f'Total Return on Invesatment: {total_profit}')
-                print('------------')         
-                break
+                print(f'Buy Order: {s} @ {p}')
+                print(f'Buy Order New Average: {holdings} @ {average}')
             
             else:
-                holdings -= s 
-                print(f'Sell Order: {s} @ {p}')
+                ## Selling stock
                 
-                if holdings == 0:
-                    ## Reset average after liquidating stock
-                    average = 0
-                    c = 0
-                    print('Sold all holdings')
+                ## if ii == len(share_lis): <- Doesn't work, This is probably because in the Python 3.x, 
+                ## zip returns a generator object. This object is not a list
+                ## https://stackoverflow.com/questions/31011631/python-2-3-object-of-type-zip-has-no-len/38045805
+    
+                if ii == x:
+                    
+                    average = c / holdings
+                    gain_loss = p - average
+                    total_profit = gain_loss * s
+                    print(f'Current Holdings Average: {holdings} @ {average}')
+                    print(f'Final Sell Order: {s} @ {p}')
+                    print(f'Total Return on Invesatment: {round(total_profit, 2)}')
+                    total_returns += round(total_profit, 2)
+                    
+                    if symbol in returns_dict:
+                        returns_dict[symbol] += total_profit
+                    else:
+                        returns_dict[symbol] = total_profit
+                                        
+                    print('-----------------')         
+                    break #Use break because don't care about orders after sell order
+                
                 else:
-                    print(f'New Holdings Average: {holdings} @ {average}')
-                    ## Take away shares from from holding average
-                    ## However average stays the same
-                    c -= s*average
-        x += 1
+                    holdings -= s 
+                    print(f'Sell Order: {s} @ {p}')
+                    
+                    if holdings == 0:
+                        ## Reset average after liquidating stock
+                        average = 0
+                        c = 0
+                        print('Sold all holdings')
+                    else:
+                        print(f'New Holdings Average: {holdings} @ {average}')
+                        ## Take away shares from from holding average
+                        ## However average stays the same
+                        c -= s*average
+            x += 1
 
-
-
+print(f'Gross Returns: {total_returns}')
+net_returns = total_returns - portfolio['Charges and fees'].sum()
+print(f'Net Returns: {net_returns}')
 
 
 
