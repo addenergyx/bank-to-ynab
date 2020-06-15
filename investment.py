@@ -237,7 +237,7 @@ for symbol in all_holdings:
                 holdings += s
                 average = c / holdings
                 print(f'Buy Order: {s} @ {p}')
-                print(f'Buy Order New Average: {holdings} @ {average}')
+                print(f'New Holdings Average: {holdings} @ {average}')
             
             else:
                 ## Selling stock
@@ -294,7 +294,7 @@ for symbol in all_holdings:
     
     df = df.reset_index().drop('index', axis=1)
 
-    print(f'-------{symbol}-------')
+    print(f'------- {symbol} History -------')
     
     for ii, row in df.iterrows():
         
@@ -314,7 +314,7 @@ for symbol in all_holdings:
                 holdings += s
                 average = c / holdings
                 print(f'Buy Order: {s} @ {p}')
-                print(f'Buy Order New Average: {holdings} @ {average}')
+                print(f'New Holdings Average: {holdings} @ {average}')
             
             else:
 
