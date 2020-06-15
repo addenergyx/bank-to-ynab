@@ -97,7 +97,7 @@ html,body {
 }
 
 #measurements-dropdown {
-    padding: 50px 50px 0px;
+    margin: 50px 50px 0px;
 }
 
 @media only screen and (max-width: 600px) {
@@ -326,10 +326,13 @@ table.transaction-table td:last-child {
     
 }
 
+#measurements-dropdown .VirtualizedSelectFocusedOption, #measurements-dropdown .Select-menu-outer {
+  color: black;
+}
 
-
-
-
+#measurements-dropdown input {
+  color: White;
+}
 
 
 
