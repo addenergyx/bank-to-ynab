@@ -20,8 +20,8 @@ def Fab():
                             html.Li(dbc.Button([html.Span(className='fa fa-cog icon')], id='open', className='fixed-btn')),
                             html.Li(dbc.NavLink(dbc.Button([html.Span(className='fa fa-wallet icon')], className='fixed-btn'), href='../finance/', external_link=True)),
                             html.Li(dbc.NavLink(dbc.Button([html.Span(className='fa fa-running icon')], className='fixed-btn'), href='../fitness/', external_link=True)),
-                            html.Li(dbc.NavLink(dbc.Button([html.Span(className='fab fa-github icon')], className='fixed-btn'), href='https://github.com/addenergyx/bank-to-ynab', external_link=True)),
                             html.Li(dbc.NavLink(dbc.Button([html.Span(className='fa fa-chart-line icon')], className='fixed-btn'), href='../', target='_blank', external_link=True))    
+                            html.Li(dbc.NavLink(dbc.Button([html.Span(className='fab fa-github icon')], className='fixed-btn'), href='https://github.com/addenergyx/bank-to-ynab', external_link=True)),
                         ],className='fab-options')
                 ], className='fab-container'
               ),
