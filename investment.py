@@ -201,17 +201,18 @@ all_holdings = portfolio['Ticker Symbol'].unique()
 
 import pandas as pd
 
-returns_dict = {}
+# returns_dict = {}
 total_returns = 0
+
+import collections
+holdings_dict = collections.defaultdict(dict)
 
 for symbol in all_holdings:
     
     df = portfolio[portfolio['Ticker Symbol'] == symbol]
     
     df = df.reset_index().drop('index', axis=1)
-    
-    #df = pd.read_csv('test.csv')
-    
+        
     a = df[df.Type == 'Sell']
     
     print(f'-------{symbol}-------')
@@ -226,11 +227,6 @@ for symbol in all_holdings:
         type_lis = df['Type'][:ii+1].tolist()
         
         fees_lis = df['Charges and fees'][:ii+1].tolist()
-        
-        #print(ii)
-        # print(share_lis)
-        # print(type_lis)
-        # print(type_lis)
     
         c = x = holdings = average = 0
                 
@@ -261,9 +257,11 @@ for symbol in all_holdings:
                     total_returns += round(total_profit, 2)
                     
                     if symbol in returns_dict:
-                        returns_dict[symbol] += total_profit
+                        # returns_dict[symbol] += total_profit
+                        holdings_dict[symbol]['Gross Returns'] += total_profit
                     else:
-                        returns_dict[symbol] = total_profit
+                        # returns_dict[symbol] = total_profit
+                        holdings_dict[symbol]['Gross Returns'] = total_profit
                                         
                     print('-----------------')         
                     break #Use break because don't care about orders after sell order
@@ -288,5 +286,73 @@ print(f'Gross Returns: {total_returns}')
 net_returns = total_returns - portfolio['Charges and fees'].sum()
 print(f'Net Returns: {net_returns}')
 
+## Current holdings in portfolio
 
+for symbol in all_holdings:
+    
+    df = portfolio[portfolio['Ticker Symbol'] == symbol]
+    
+    df = df.reset_index().drop('index', axis=1)
 
+    print(f'-------{symbol}-------')
+    
+    for ii, row in df.iterrows():
+        
+        ## currently does not take into account fees 
+        ## should use total cost column instead later
+        
+        share_lis = df['Shares'][:ii+1].tolist()
+        price_lis = df['Price'][:ii+1].tolist()
+        type_lis = df['Type'][:ii+1].tolist()
+    
+        c = x = holdings = average = 0
+                
+        for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
+            
+            if t == 'Buy':
+                c += s*p
+                holdings += s
+                average = c / holdings
+                print(f'Buy Order: {s} @ {p}')
+                print(f'Buy Order New Average: {holdings} @ {average}')
+            
+            else:
+
+                holdings -= s 
+                print(f'Sell Order: {s} @ {p}')
+                
+                if holdings == 0:
+                    ## Reset average after liquidating stock
+                    average = 0
+                    c = 0
+                    print('Sold all holdings')
+                else:
+                    print(f'New Holdings Average: {holdings} @ {average}')
+                    ## Take away shares from from holding average
+                    ## However average stays the same
+                    c -= s*average
+      
+    holdings_dict[symbol]['Current Holdings'] = holdings
+    holdings_dict[symbol]['Current Average'] = average
+        
+    print(f'Holdings Average: {holdings} @ {average}')            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
