@@ -156,8 +156,14 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 # ------------------------------------------------
 
 all_holdings = portfolio['Ticker Symbol'].unique()
+watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH']
 
-# returns_dict = {}
+def returnNotMatches(a, b):
+    return [x for x in b if x not in a]
+
+## Remove stocks already in my portfolio
+watchlist = returnNotMatches(all_holdings, watchlist)
+
 total_returns = 0
 
 holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
@@ -241,56 +247,63 @@ print(f'Gross Returns: {total_returns}')
 net_returns = total_returns - portfolio['Charges and fees'].sum()
 print(f'Net Returns: {net_returns}')
 
-## Current holdings in portfolio
-
-for symbol in all_holdings:
+def generate_holdings(all_holdings):
     
-    df = portfolio[portfolio['Ticker Symbol'] == symbol]
-    
-    df = df.reset_index().drop('index', axis=1)
-
-    print(f'------- {symbol} History -------')
-    
-    for ii, row in df.iterrows():
+    for symbol in all_holdings:
         
-        ## currently does not take into account fees 
-        ## should use total cost column instead later
+        df = portfolio[portfolio['Ticker Symbol'] == symbol]
         
-        share_lis = df['Shares'][:ii+1].tolist()
-        price_lis = df['Price'][:ii+1].tolist()
-        type_lis = df['Type'][:ii+1].tolist()
+        df = df.reset_index().drop('index', axis=1)
     
-        c = x = holdings = average = 0
-                
-        for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
+        ## Watchlist
+        
+        if df.empty:
+            holdings_dict[symbol]['Current Holdings'] = 0
+            holdings_dict[symbol]['Current Average'] = 0.0
+        
+        else:
+            print(f'------- {symbol} History -------')
             
-            if t == 'Buy':
-                c += s*p
-                holdings += s
-                average = c / holdings
-                print(f'Buy Order: {s} @ {p}')
-                print(f'New Holdings Average: {holdings} @ {average}')
-            
-            else:
-
-                holdings -= s 
-                print(f'Sell Order: {s} @ {p}')
+            for ii, row in df.iterrows():
                 
-                if holdings == 0:
-                    ## Reset average after liquidating stock
-                    average = 0
-                    c = 0
-                    print('Sold all holdings')
-                else:
-                    print(f'New Holdings Average: {holdings} @ {average}')
-                    ## Take away shares from from holding average
-                    ## However average stays the same
-                    c -= s*average
-      
-    holdings_dict[symbol]['Current Holdings'] = holdings
-    holdings_dict[symbol]['Current Average'] = average
+                ## currently does not take into account fees 
+                ## should use total cost column instead later
+                
+                share_lis = df['Shares'][:ii+1].tolist()
+                price_lis = df['Price'][:ii+1].tolist()
+                type_lis = df['Type'][:ii+1].tolist()
+            
+                c = x = holdings = average = 0
+                        
+                for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
+                    
+                    if t == 'Buy':
+                        c += s*p
+                        holdings += s
+                        average = c / holdings
+                        print(f'Buy Order: {s} @ {p}')
+                        print(f'New Holdings Average: {holdings} @ {average}')
+                    
+                    else:
         
-    print(f'Holdings Average: {holdings} @ {average}')            
+                        holdings -= s 
+                        print(f'Sell Order: {s} @ {p}')
+                        
+                        if holdings == 0:
+                            ## Reset average after liquidating stock
+                            average = 0
+                            c = 0
+                            print('Sold all holdings')
+                        else:
+                            print(f'New Holdings Average: {holdings} @ {average}')
+                            ## Take away shares from from holding average
+                            ## However average stays the same
+                            c -= s*average
+              
+            holdings_dict[symbol]['Current Holdings'] = holdings
+            holdings_dict[symbol]['Current Average'] = average
+                
+            print(f'Holdings Average: {holdings} @ {average}')            
 
 # ------------------------------------------------           
 #
@@ -343,38 +356,40 @@ stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", s
 start = datetime.datetime(2020, 2, 8)
 end = datetime.datetime.now()    
 
-for symbol in all_holdings:
-
-    try:
-        
-        looky = stock_list_lookup.loc[stock_list_lookup['ticker'] == symbol]
-        if looky['Market name '].head(1).to_string(index=False).strip() == 'London Stock Exchange':
-            #remove trailing . from BA. (BAE SYSTEMS)
-            yf_symbol = symbol.rstrip('.')
-            yf_symbol = f'{yf_symbol}.L'
-        elif symbol == 'KWS' or symbol == 'RDSB':
-            yf_symbol = f'{symbol}.L'            
-        elif symbol == 'EXSH':
-            yf_symbol = f'{symbol}.MI'
-        else:
-            yf_symbol = symbol
-        
-        index = web.DataReader(yf_symbol, 'yahoo', start, end)
-        
-        ## Rearrange dataframe for stockstats module
-        cols = ['Open','Close','High','Low', 'Volume','Adj Close']
+def generate_rsi(all_holdings):
     
-        index = index[cols]
+    for symbol in all_holdings:
+    
+        try:
+            
+            looky = stock_list_lookup.loc[stock_list_lookup['ticker'] == symbol]
+            if looky['Market name '].head(1).to_string(index=False).strip() == 'London Stock Exchange':
+                #remove trailing . from BA. (BAE SYSTEMS)
+                yf_symbol = symbol.rstrip('.')
+                yf_symbol = f'{yf_symbol}.L'
+            elif symbol == 'KWS' or symbol == 'RDSB':
+                yf_symbol = f'{symbol}.L'            
+            elif symbol == 'EXSH':
+                yf_symbol = f'{symbol}.MI'
+            else:
+                yf_symbol = symbol
+            
+            index = web.DataReader(yf_symbol, 'yahoo', start, end)
+            
+            ## Rearrange dataframe for stockstats module
+            cols = ['Open','Close','High','Low', 'Volume','Adj Close']
         
-        ## https://github.com/jealous/stockstats
-        stock = stockstats.StockDataFrame.retype(index)
-        
-        print('{}: {}'.format(symbol, stock.get('rsi_13')[-1]))
-        
-        holdings_dict[symbol]['RSI'] = round(stock.get('rsi_13')[-1], 2)
-    except:
-        print(f"Couldn't find symbol {symbol} in lookup table")
-        pass
+            index = index[cols]
+            
+            ## https://github.com/jealous/stockstats
+            stock = stockstats.StockDataFrame.retype(index)
+            
+            print('{}: {}'.format(symbol, stock.get('rsi_13')[-1]))
+            
+            holdings_dict[symbol]['RSI'] = round(stock.get('rsi_13')[-1], 2)
+        except:
+            print(f"Couldn't find symbol {symbol} in lookup table")
+            pass
     
 def send_email(rsi_dict):
     
@@ -414,6 +429,15 @@ def send_email(rsi_dict):
         server.login(os.getenv('GMAIL'), os.getenv('GMAIL_PASS'))
         # TODO: Send email here
         server.sendmail(sender_email, receiver_email, message.as_string())
+
+## Current holdings in portfolio
+generate_holdings(all_holdings)
+
+## Add watchlist for html table
+generate_holdings(watchlist)
+
+generate_rsi(all_holdings)
+generate_rsi(watchlist)
 
 send_email(holdings_dict)
 
