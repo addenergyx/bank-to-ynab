@@ -11,6 +11,10 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from finances import app as app1
 #from mapout import app as app2
 from server import server as flask_app
+from dotenv import load_dotenv
+
+# Load env vars
+load_dotenv(verbose=True, override=True)
 
 application = DispatcherMiddleware(flask_app, {
     '/app1': app1.server,
