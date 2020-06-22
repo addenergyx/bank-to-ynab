@@ -157,7 +157,7 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 # ------------------------------------------------
 
 all_holdings = portfolio['Ticker Symbol'].unique()
-watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.']
+watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR']
 
 def returnNotMatches(a, b):
     return [x for x in b if x not in a]
@@ -269,6 +269,7 @@ def generate_holdings(all_holdings):
                 
                 ## currently does not take into account fees 
                 ## should use total cost column instead later
+                ## trading212 doesn't include fees in returns per stock
                 
                 share_lis = df['Shares'][:ii+1].tolist()
                 price_lis = df['Price'][:ii+1].tolist()
