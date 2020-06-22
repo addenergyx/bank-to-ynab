@@ -123,7 +123,6 @@ portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=Tr
 # # Datetime not compatible with excel
 portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
 
-
 '''
 Things to take note when creating a Transactions Portfolio for Simply Wall St:
 
@@ -156,7 +155,7 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 # ------------------------------------------------
 
 all_holdings = portfolio['Ticker Symbol'].unique()
-watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH']
+watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 'WMT', 'KIE', 'WPC']
 
 def returnNotMatches(a, b):
     return [x for x in b if x not in a]
