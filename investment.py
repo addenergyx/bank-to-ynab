@@ -157,7 +157,8 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 # ------------------------------------------------
 
 all_holdings = portfolio['Ticker Symbol'].unique()
-watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD']
+watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 
+             'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD', 'FSLY', 'WKHS']
 
 def returnNotMatches(a, b):
     return [x for x in b if x not in a]
@@ -353,7 +354,6 @@ stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", s
 # if looky['Market name '].head(1).to_string(index=False).strip() is 'London Stock Exchange':
 #     symbol = f'{symbol}.L'
 # elif looky['Market name '].head(1).to_string(index=False).strip() is 'London Stock Exchange':   
-
     
 start = datetime.datetime(2020, 2, 8)
 end = datetime.datetime.now()    
@@ -377,6 +377,8 @@ def generate_rsi(all_holdings):
                 yf_symbol = symbol
             
             index = web.DataReader(yf_symbol, 'yahoo', start, end)
+            
+            holdings_dict[symbol]['Last Night Stock Price'] = index['Close'][-1]
             
             ## Rearrange dataframe for stockstats module
             cols = ['Open','Close','High','Low', 'Volume','Adj Close']
@@ -406,10 +408,10 @@ def send_email(rsi_dict):
     #text = 'You have completed {} Transactions'.format(num)
 
     from prettytable import PrettyTable
-    x = PrettyTable(['Ticker','Current Holdings','Current Average','RSI'])
+    x = PrettyTable(['Ticker','Current Holdings','Current Average', 'Last Night Stock Price', 'RSI'])
     
     for key, val in holdings_dict.items():
-       x.add_row([key, val['Current Holdings'], val['Current Average'], val['RSI']])
+       x.add_row([key, val['Current Holdings'], val['Current Average'], val['Last Night Stock Price'], val['RSI']])
     
     x.sortby = "RSI"
     
