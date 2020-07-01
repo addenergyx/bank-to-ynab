@@ -18,6 +18,7 @@ from pandas_datareader import data as web
 import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from prettytable import PrettyTable
 
 load_dotenv(verbose=True, override=True)
 
@@ -337,15 +338,13 @@ and the current gain loss:
 """
 #rsi_dict = {}
 
-
-
 # Trading 212 stock list [Invest] google sheet (separators ";", encoding = "utf_16")
 stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", sep=';')
 
 #AIR.PA ABF.L 
 # use lookup table 
 
-#symbol = 'ABF'
+# symbol = 'ABF'
 
 # looky = stock_list_lookup.loc[stock_list_lookup['ticker'] == symbol]
 
@@ -357,6 +356,9 @@ stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", s
     
 start = datetime.datetime(2020, 2, 8)
 end = datetime.datetime.now()    
+
+def formatting(num):
+    return round(num, 2)
 
 def generate_rsi(all_holdings):
     
@@ -378,7 +380,10 @@ def generate_rsi(all_holdings):
             
             index = web.DataReader(yf_symbol, 'yahoo', start, end)
             
-            holdings_dict[symbol]['Last Night Stock Price'] = index['Close'][-1]
+            holdings_dict[symbol]['Today Open'] = formatting(index['Open'][-1])
+            holdings_dict[symbol]['1D'] = formatting(index['Close'][-2])
+            holdings_dict[symbol]['1W'] = formatting(index['Close'][-6])
+            holdings_dict[symbol]['1M'] = formatting(index['Close'][-29])
             
             ## Rearrange dataframe for stockstats module
             cols = ['Open','Close','High','Low', 'Volume','Adj Close']
@@ -390,7 +395,7 @@ def generate_rsi(all_holdings):
             
             print('{}: {}'.format(symbol, stock.get('rsi_13')[-1]))
             
-            holdings_dict[symbol]['RSI'] = round(stock.get('rsi_13')[-1], 2)
+            holdings_dict[symbol]['RSI'] = formatting(stock.get('rsi_13')[-1])
         except:
             print(f"Couldn't find symbol {symbol} in lookup table")
             pass
@@ -407,17 +412,17 @@ def send_email(rsi_dict):
     
     #text = 'You have completed {} Transactions'.format(num)
 
-    from prettytable import PrettyTable
-    x = PrettyTable(['Ticker','Current Holdings','Current Average', 'Last Night Stock Price', 'RSI'])
+    x = PrettyTable(['Ticker','Current Holdings','Current Average', '1M', '1W', '1D','Today Open', 'RSI'])
+    x.align = "c" 
     
     for key, val in holdings_dict.items():
-       x.add_row([key, val['Current Holdings'], val['Current Average'], val['Last Night Stock Price'], val['RSI']])
+       x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['RSI']])
     
     x.sortby = "RSI"
     
     html = x.get_html_string(attributes={"name":"stocks_table"})
     
-    plain = x.get_string()
+    # plain = x.get_string()
     
     # print(x)
     # print (html)
