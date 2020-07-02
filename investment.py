@@ -304,8 +304,8 @@ def generate_holdings(all_holdings):
                             ## However average stays the same
                             c -= s*average
               
-            holdings_dict[symbol]['Current Holdings'] = holdings
-            holdings_dict[symbol]['Current Average'] = average
+            holdings_dict[symbol]['Current Holdings'] = formatting(holdings)
+            holdings_dict[symbol]['Current Average'] = formatting(average)
                 
             print(f'Holdings Average: {holdings} @ {average}')            
 
@@ -395,6 +395,39 @@ def generate_rsi(all_holdings):
             
             print('{}: {}'.format(symbol, stock.get('rsi_13')[-1]))
             
+            gg = formatting(stock.get('close_9_sma')[-2]) # Price strength SMA line
+            qq = formatting(stock.get('close_180_sma')[-2]) # Directional SMA line
+            
+            if stock['open'][-2] > stock['close'][-2]:
+                # Trending downward
+                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed downward' #potential sell
+                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock'
+                else:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock'
+                    
+                    
+                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock'
+                else:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock'
+                
+            else:
+                #Trending upward
+                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed upward' #potential buy
+                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock'
+                else:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock'
+            
+                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock'
+                else:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock'
+            
+            
             holdings_dict[symbol]['RSI'] = formatting(stock.get('rsi_13')[-1])
         except:
             print(f"Couldn't find symbol {symbol} in lookup table")
@@ -412,11 +445,11 @@ def send_email(rsi_dict):
     
     #text = 'You have completed {} Transactions'.format(num)
 
-    x = PrettyTable(['Ticker','Current Holdings','Current Average', '1M', '1W', '1D','Today Open', 'RSI'])
+    x = PrettyTable(['Ticker','Current Holdings','Current Average', '1M', '1W', '1D','Today Open', '9_SMA', '180_SMA', 'RSI'])
     x.align = "c" 
     
     for key, val in holdings_dict.items():
-       x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['RSI']])
+       x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['9_sma'], val['180_sma'], val['RSI']])
     
     x.sortby = "RSI"
     
