@@ -159,7 +159,7 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 
 all_holdings = portfolio['Ticker Symbol'].unique()
 watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 
-             'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD', 'FSLY', 'WKHS', 'RMV', 'TW.', 'PSN']
+             'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD', 'FSLY', 'WKHS', 'RMV', 'TW.', 'PSN', 'MU', 'AMD']
 
 def returnNotMatches(a, b):
     return [x for x in b if x not in a]
