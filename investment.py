@@ -398,34 +398,35 @@ def generate_rsi(all_holdings):
             gg = formatting(stock.get('close_9_sma')[-2]) # Price strength SMA line
             qq = formatting(stock.get('close_180_sma')[-2]) # Directional SMA line
             
-            if stock['open'][-2] > stock['close'][-2]:
+            # if stock['open'][-2] > stock['close'][-2]:
+            if stock['close'][-3] > stock['close'][-2]:
                 # Trending downward
                 if stock['close'][-2] <= gg <= stock['open'][-2]:
-                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed downward' #potential sell
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed downward ↓' #potential sell
                 elif gg > stock['close'][-2] and gg > stock['open'][-2]:
-                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock'
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↓'
                 else:
-                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock'
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↓'
                     
                     
                 if qq > stock['close'][-2] and qq > stock['open'][-2]:
-                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock'
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↓'
                 else:
-                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock'
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↓'
                 
             else:
                 #Trending upward
                 if stock['close'][-2] <= gg <= stock['open'][-2]:
-                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed upward' #potential buy
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed upward ↓' #potential buy
                 elif gg > stock['close'][-2] and gg > stock['open'][-2]:
-                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock'
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↑'
                 else:
-                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock'
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↑'
             
                 if qq > stock['close'][-2] and qq > stock['open'][-2]:
-                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock'
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↑'
                 else:
-                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock'
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↑'
             
             
             holdings_dict[symbol]['RSI'] = formatting(stock.get('rsi_13')[-1])
