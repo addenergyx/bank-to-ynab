@@ -170,6 +170,7 @@ watchlist = returnNotMatches(all_holdings, watchlist)
 total_returns = 0
 
 holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
+returns_dict = {}
 
 for symbol in all_holdings:
     
@@ -189,12 +190,13 @@ for symbol in all_holdings:
         share_lis = df['Shares'][:ii+1].tolist()
         price_lis = df['Price'][:ii+1].tolist()
         type_lis = df['Type'][:ii+1].tolist()
+        day_lis = df['Trading day'][:ii+1].tolist()
         
-        fees_lis = df['Charges and fees'][:ii+1].tolist()
+        #fees_lis = df['Charges and fees'][:ii+1].tolist()
     
         c = x = holdings = average = 0
                 
-        for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
+        for s, p, t, d in list(zip(share_lis, price_lis, type_lis, day_lis)):
             
             if t == 'Buy':
                 c += s*p
@@ -223,10 +225,16 @@ for symbol in all_holdings:
                     if symbol in holdings_dict:
                         # returns_dict[symbol] += total_profit
                         holdings_dict[symbol]['Gross Returns'] += total_profit
+                        
                     else:
                         # returns_dict[symbol] = total_profit
                         holdings_dict[symbol]['Gross Returns'] = total_profit
-                                        
+                                              
+                    if d in returns_dict:    
+                        returns_dict[d] += total_profit
+                    else:
+                        returns_dict[d] = total_profit
+                                            
                     print('-----------------')         
                     break #Use break because don't care about orders after sell order
                 
@@ -249,6 +257,18 @@ for symbol in all_holdings:
 print(f'Gross Returns: {total_returns}')
 net_returns = total_returns - portfolio['Charges and fees'].sum()
 print(f'Net Returns: {net_returns}')
+
+## Monthly Returns
+
+dff = pd.DataFrame(returns_dict.items(), columns=['Date', 'Returns'])
+
+dff['Date']= pd.to_datetime(dff['Date'], format='%d-%m-%Y') 
+
+per = dff.Date.dt.to_period("M")
+g = dff.groupby(per)
+g.sum() 
+
+##
 
 def generate_holdings(all_holdings):
     
