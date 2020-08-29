@@ -382,16 +382,18 @@ def formatting(num):
 
 def generate_rsi(all_holdings):
     
+    stoky = set(['KWS', 'RDSB', 'FEVR'])
+    
     for symbol in all_holdings:
     
         try:
-            
+              
             looky = stock_list_lookup.loc[stock_list_lookup['ticker'] == symbol]
             if looky['Market name '].head(1).to_string(index=False).strip() == 'London Stock Exchange':
                 #remove trailing . from BA. (BAE SYSTEMS)
                 yf_symbol = symbol.rstrip('.')
                 yf_symbol = f'{yf_symbol}.L'
-            elif symbol == 'KWS' or symbol == 'RDSB':
+            elif symbol in stoky:
                 yf_symbol = f'{symbol}.L'            
             elif symbol == 'EXSH':
                 yf_symbol = f'{symbol}.MI'
@@ -470,7 +472,8 @@ def send_email(rsi_dict):
     x.align = "c" 
     
     for key, val in holdings_dict.items():
-       x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['9_sma'], val['180_sma'], val['RSI']])
+        #print(key)
+        x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['9_sma'], val['180_sma'], val['RSI']])
     
     x.sortby = "RSI"
     
