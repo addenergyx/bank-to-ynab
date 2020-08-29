@@ -52,7 +52,6 @@ rotation = 0
 
 locale.setlocale(locale.LC_ALL, '')
 
-
 def progress_bar_color(progress):
     ## Changing progress bar colour
     if progress >= 100:
@@ -103,8 +102,12 @@ def initial_weekly():
     total = 0
 
     ## TODO: edit to include credit cards
-    for i, account in data.iterrows():        
+    for i, account in data.iterrows():     
         if account['bank'] != 'Barclaycard':
+            
+            # response = client.Item.get(account['access_token'])
+            # item = response['item']
+            print(account['bank'])
             weeks_transactions = client.Transactions.get(account['access_token'], str(start), str(end))['transactions']
             for transaction in weeks_transactions:
                             ## Plaid's ML Categorisation is not accurate for some transactions
@@ -488,6 +491,33 @@ def coop_check():
 
     return p1, p2, p3, p4, p5, p6, p7, p8, p9 
 
+def halifax_check():
+    
+    currentMonth = '{:02d}'.format(datetime.now().month) # Using int() here changes format of month, need leading 0 
+    currentYear = datetime.now().year
+    lastDay = monthrange(int(currentYear),int(currentMonth))[1]
+    
+    access_token = data.query('bank in "Halifax"')['access_token'].values[0]
+    
+    for account in client.Accounts.balance.get(access_token)['accounts']:
+        if account['name'] == 'CurrentAccount 2465':
+            account_ids = account['account_id']
+            break
+    
+    transactions = client.Transactions.get(access_token, "{0}-{1}-01".format(currentYear,currentMonth), 
+                                           "{0}-{1}-{2}".format(currentYear,currentMonth,lastDay), account_ids=[account_ids])['transactions']
+       
+    mp = minimum_payment(transactions)
+    
+    spend = 0
+    for transaction in transactions:
+        if transaction['amount'] > 0:
+            spend += transaction['amount']
+    
+    p1, p2, p3 = build_bar(mp, 1500)
+    p4, p5, p6 = build_bar(spend, 500)
+    
+    return p1, p2, p3, p4, p5, p6
 
 def barclays_check():
     
@@ -671,6 +701,25 @@ progress2 = html.Div([
                     ], className="align-items-center"),      
     ], id="bbb")
 
+progress3 = html.Div([
+                    dbc.Row([
+                        dbc.Col([
+                            html.P("Pay in a minimum of 1500", style={'margin':'0 auto', 'color': colors['text']}),
+                        ], className="center"),
+                        dbc.Col([
+                            dbc.Progress(id="f", striped=True, animated=True),                    
+                        ]),
+                    ], className="align-items-center"),
+                    dbc.Row([
+                        dbc.Col([
+                            html.P("Spend at least £500", style={'margin':'0 auto', 'color': colors['text']}),
+                        ]),
+                        dbc.Col([
+                            dbc.Progress(id="g", striped=True, animated=True),
+                        ]),
+                    ], className="align-items-center"),      
+    ], id="ccc")
+
 # def barclays_check():
 #     mp = minimum_payment(transactions, 800)
 #     dd = num_of_direct_debt(transactions, 2)
@@ -683,7 +732,8 @@ coop_card = [
         [
             html.Div([
                 dbc.Button("Co-operative Bank", id="cooop"),
-                dbc.Button("Barclays Bank", id="barclays")
+                dbc.Button("Barclays Bank", id="barclays"),
+                dbc.Button("Halifax", id="halifax")
             ], className="btn-group btn-group-sm center", style={"padding-bottom":"10px"}),
             
             # daq.ToggleSwitch(
@@ -942,8 +992,10 @@ body = html.Div(
               [Input('cooop', 'n_clicks'), Input('barclays', 'n_clicks')])
 def toggle_rewards(btn1, btn2):
     changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
-    if 'cooop' in changed_id or 'barclays' not in changed_id:
+    if 'cooop' in changed_id: # or 'barclays' not in changed_id:
         return progress1
+    elif 'halifax' in changed_id:
+        return progress3
     else:
         return progress2  
 
@@ -1327,6 +1379,14 @@ def update_coop_rewards(n):
 )
 def update_barclay_rewards(n):
     return barclays_check()
+
+@app.callback(
+    [Output("f", "value"), Output("f", "children"), Output("f", "color"),
+     Output("g", "value"), Output("g", "children"), Output("g", "color"),],
+    [Input("progress-interval", "n_intervals")],
+)
+def update_halifax_rewards(n):
+    return halifax_check()
 
 @app.callback(
     [Output("progress-4", "value"), Output("progress-4", "children"), Output("progress-4", "color")],
