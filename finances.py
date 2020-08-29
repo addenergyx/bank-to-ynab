@@ -487,7 +487,7 @@ def coop_check():
     
     p1, p2, p3 = build_bar(mp, 800)
     p4, p5, p6 = build_bar(dd, 4)
-    p7, p8, p9 = build_bar(ct, 30)
+    p7, p8, p9 = build_bar(ct, 60)
 
     return p1, p2, p3, p4, p5, p6, p7, p8, p9 
 
