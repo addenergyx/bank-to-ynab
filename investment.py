@@ -266,7 +266,7 @@ dff['Date']= pd.to_datetime(dff['Date'], format='%d-%m-%Y')
 
 per = dff.Date.dt.to_period("M")
 g = dff.groupby(per)
-g.sum() 
+monthly_returns_df = g.sum()
 
 ##
 
