@@ -29,7 +29,12 @@ load_dotenv(verbose=True, override=True)
 #
 # -------------------------------------------------
 
-## TODO: Stock allocation
+##### TODO #####
+# Stock allocation %
+# Graphs with points of buy/sell days (similar to vanguard)
+# withdraws/deposits (email: Withdrawal request successful/Real Account Funded Successfully)
+# Monthly dividends (from Monthly statement email)
+
 
 email_user = os.getenv('GMAIL')
 email_pass = os.getenv('GMAIL_PASS')
@@ -258,15 +263,19 @@ print(f'Gross Returns: {total_returns}')
 net_returns = total_returns - portfolio['Charges and fees'].sum()
 print(f'Net Returns: {net_returns}')
 
-## Monthly Returns
+## Returns period
 
-dff = pd.DataFrame(returns_dict.items(), columns=['Date', 'Returns'])
+daily_returns_df = pd.DataFrame(returns_dict.items(), columns=['Date', 'Returns'])
 
-dff['Date']= pd.to_datetime(dff['Date'], format='%d-%m-%Y') 
+daily_returns_df['Date']= pd.to_datetime(daily_returns_df['Date'], format='%d-%m-%Y') 
 
-per = dff.Date.dt.to_period("M")
-g = dff.groupby(per)
+period = daily_returns_df.Date.dt.to_period("M")
+g = daily_returns_df.groupby(period)
 monthly_returns_df = g.sum()
+
+period = daily_returns_df.Date.dt.to_period("W")
+g = daily_returns_df.groupby(period)
+weekly_returns_df = g.sum()
 
 ##
 
