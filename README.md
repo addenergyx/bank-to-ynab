@@ -27,7 +27,7 @@ The theme also switches between light and dark based on the user's display setti
 ## Key Notes
 
 ### Moving Average
-Used a seven day moving average to analyze its weight loss/gain. Plotting daily weight on an average curve smoothens out the daily fluctuations in weight. This has many benefits, such as showing weight trends and lessens daily fluctuations. I feel seeing an overall upward/downward trend based on your goal is much more critical than individual points. Many factors can influence a weigh-in such as how much extra water you retained last night because you ate something salty. Especially as I can currently trying alternative day fasting, I'll naturally see significant differences in my fasted vs non-fasted weight-ins. A simple moving average helps show whether this approach is working.
+Used a seven day moving average to analyze its weight loss/gain. Plotting daily weight on an average curve smoothens out the daily fluctuations in weight. This has many benefits, such as showing weight trends and lessens daily fluctuations. I feel that seeing an overall upward/downward trend based on your goal is much more critical than individual points. Many factors can influence a weigh-in such as how much extra water you retained last night because you ate something salty. Especially as I can currently trying alternative day fasting, I'll naturally see significant differences in my fasted vs non-fasted weight-ins. A simple moving average helps show whether this approach is working.
 
 ### Goals
 Weight loss goals are based on advice from several fitness experts and journals 
