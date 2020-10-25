@@ -20,6 +20,9 @@ import re
 
 from data import get_tokens
 
+import ynab
+from ynab.rest import ApiException
+
 # db_URI = os.getenv('AWS_DATABASE_URL')
 # engine = create_engine(db_URI)
 # data = pd.read_sql_table("banking", con=engine, index_col='index')
@@ -81,7 +84,7 @@ def cleanup_transactions(transactions: list, account):
     for a in transactions:
         a['payee_name'] = a.pop('name')
         a['account_id'] = account # Match bank access token to ynab acount id
-        a['import_id'] = a['date'] + '-' + a['transaction_id'][:25] # Pervent duplications in ynab
+        a['import_id'] = a['date'] + '-' + a['transaction_id'][:25] # Prevent duplications in ynab
         a['amount'] = int(a['amount'] * -1000) # YNAB uses milliunits, 1,000 milliunits equals "one" unit
         #a['cleared'] = 'cleared' # Plaid API only gets cleared transactions
         for k in entriesToRemove:
@@ -112,7 +115,7 @@ def send_email(msg: str, error_code):
 def job():
     today = date.today()
     first = today.replace(day=1)
-    lastMonth = first - timedelta(days=14)
+    lastMonth = first - timedelta(days=14) # 200 requests per hour rate limit
     for i, row in data.iterrows():        
         account_id = row['ynab_account_id']
         #print(p['access_token'])
@@ -133,10 +136,7 @@ def job():
         """
         now = datetime.now().strftime("%d-%m-%Y %H:%M:%S") 
         pprint(f"{now}: there have been {some_transactions['total_transactions']} total transations in the past 2 weeks from {row['bank']}")
-        
-        import ynab
-        from ynab.rest import ApiException
-    
+         
         configuration = ynab.Configuration()
     
         configuration.api_key['Authorization'] = os.getenv('YNAB_API_KEY')
@@ -144,16 +144,20 @@ def job():
     
         api_instance = ynab.TransactionsApi(ynab.ApiClient(configuration))
         budget_id = os.getenv('YNAB_BUDGET_ID')
+        
+        # YNAB have depricated bulk transactions endpoint 
+        # as a result sending empty arrays returns an error 
+        if len(transactions) > 0 : 
     
-        bulk_transactions = ynab.BulkTransactions(transactions)
+            bulk_transactions = ynab.BulkTransactions(transactions)
     
-        try:
-            # Bulk create transactions
-            api_response = api_instance.bulk_create_transactions(budget_id, bulk_transactions)
-            #pprint(api_response)
-        except ApiException as e:
-            print("Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason)
-            send_email("YNAB: Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason ,e.status)
+            try:
+                # Bulk create transactions
+                api_response = api_instance.bulk_create_transactions(budget_id, bulk_transactions) #depricated
+                #pprint(api_response)
+            except ApiException as e:
+                print("Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason)
+                send_email("YNAB: Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason ,e.status)
 
 if WORKING_ENV == 'development':            
     schedule.every(10).seconds.do(job)
