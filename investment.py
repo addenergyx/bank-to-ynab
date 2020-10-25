@@ -304,13 +304,20 @@ print(f'Net Returns: {net_returns}')
 ## Returns period
 
 daily_returns_df = pd.DataFrame(returns_dict.items(), columns=['Date', 'Returns'])
-
 daily_returns_df['Date']= pd.to_datetime(daily_returns_df['Date'], format='%d-%m-%Y') 
 
+# Fill missing days
+idx = pd.bdate_range(min(daily_returns_df.Date), max(daily_returns_df.Date))
+daily_returns_df.set_index('Date', inplace=True)
+#s.index = pd.DatetimeIndex(s.index)
+daily_returns_df = daily_returns_df.reindex(idx, fill_value=0).reset_index().rename(columns={'index':'Date'})
+
+# Monthly Returns
 period = daily_returns_df.Date.dt.to_period("M")
 g = daily_returns_df.groupby(period)
 monthly_returns_df = g.sum()
 
+# Weekly Returns
 period = daily_returns_df.Date.dt.to_period("W")
 g = daily_returns_df.groupby(period)
 weekly_returns_df = g.sum()
@@ -693,7 +700,23 @@ generate_rsi_watchlist(watchlist)
 
 send_email(holdings_dict)
 
+# import plotly.express as px
+# from plotly.offline import plot
+# import plotly.graph_objects as go
 
+# monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
+# monthly_returns_df.reset_index(level=0, inplace=True)
+# fig = px.bar(monthly_returns_df, x='Date', y='Returns', color='Date')
+# plot(fig)
+
+# fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date')
+# plot(fig)
+
+# weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change type period to string
+# weekly_returns_df.reset_index(level=0, inplace=True)
+# weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] # Week ending
+# fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date')
+# plot(fig)
 
 
 
