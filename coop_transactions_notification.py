@@ -90,7 +90,7 @@ def job():
     
     num = num_of_card_transations(some_transactions)
     print(num)
-    if num >= 30:
+    if num >= 60:
         send_email(num)
 
 if WORKING_ENV == 'development':            
