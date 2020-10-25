@@ -9,6 +9,7 @@ import imaplib
 import os
 import email
 from bs4 import BeautifulSoup
+import requests 
 import pandas as pd
 import datetime
 from dotenv import load_dotenv
@@ -24,8 +25,8 @@ load_dotenv(verbose=True, override=True)
 
 # -------------------------------------------------
 #
-# Utility to read Contract Note Statement from Trading212 from Gmail Using Python
-# Trading 212 currently doesn't let you export files to csv format
+# Utility to read Contract Note Statement from Trading212 from Gmail using Python
+# Trading 212 currently doesn't have an API or let you export files to csv format
 #
 # -------------------------------------------------
 
@@ -34,10 +35,12 @@ load_dotenv(verbose=True, override=True)
 # Graphs with points of buy/sell days (similar to vanguard)
 # withdraws/deposits (email: Withdrawal request successful/Real Account Funded Successfully)
 # Monthly dividends (from Monthly statement email)
-
+# UK vs US portfolio (compare returns in all markets)
+# Move equities table to a database and keep old tickers (update table instead of creating new one each time)
+# Fix watchlist
 
 email_user = os.getenv('GMAIL')
-email_pass = os.getenv('GMAIL_PASS')
+email_pass = os.getenv('GMAIL_PASS') # Make sure 'Less secure app access' is turned on
 
 port = 993
 
@@ -58,6 +61,36 @@ column_headers = ['Order ID', 'Ticker Symbol', 'Type',
                   'Execution venue', 'Exchange rate', 'Total cost']
 
 mailbox_list = mailbox[0].split()
+
+## Scrap Trading212 site stocks ##
+## Need this to put the right trailing value for yahoo finance (i.e .L/.MI)
+url = "https://www.trading212.com/en/Trade-Equities"
+
+headers = {
+    'User-Agent': 'My User Agent 1.0',
+}
+
+r = requests.get(url, headers=headers)
+
+#print(r.content) 
+
+soup = BeautifulSoup(r.content, 'html5lib')
+
+table = soup.find('div', attrs = {'id':'all-equities'})
+
+instruments = []
+for row in table.findAll('div', id=lambda x: x and x.startswith('equity-row-')):
+    instrument = {}
+    instrument['INSTRUMENT'] = row.find('div', attrs = {'data-label':'Instrument'}).text
+    instrument['COMPANY'] = row.find('div', attrs = {'data-label':'Company'}).text
+    # instrument['CURRENCY CODE'] = row.find('div', attrs = {'data-label':'Currency code'}).text
+    instrument['ISIN'] = row.find('div', attrs = {'data-label':'ISIN'}).text
+    # instrument['MIN TRADED QUANTITY'] = row.find('div', attrs = {'data-label':'Min traded quantity'}).text
+    instrument['MARKET NAME'] = row.find('div', attrs = {'data-label':'Market name'}).text
+    # instrument['MARKET HOURS (GMT)'] = row.find('div', attrs = {'data-label':'Market hours (GMT)'}).text
+    instruments.append(instrument)
+ 
+all_212_equities = pd.DataFrame(instruments)
 
 for item in mailbox_list:
     
@@ -117,18 +150,18 @@ float_values = ['Shares', 'Price', 'Total amount','Commission', 'Charges and fee
 for column in float_values:
     portfolio[column] = portfolio[column].str.rstrip('GBP').astype(float)
 
-# Remove unnecessary ISN number 
-portfolio['Ticker Symbol'] = portfolio['Ticker Symbol'].str.split('/', 1).str[0]
+## Split ISIN and stock, need ISIN because some companies have the same ticker symbol, ISIN is the uid
+portfolio[['Ticker Symbol', 'ISIN']] = portfolio['Ticker Symbol'].str.split('/', expand=True)
 
-# Airbus changed their ticker symbol
+## Airbus changed their ticker symbol
 portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
 portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], format='%d-%m-%Y') #pd.to_datetime(portfolio["Trading day"]).dt.strftime('%m-%d-%Y')
 
-## For getting ROI Dataframe needs to be ordered in ascending order and grouped by Ticker Symbol
+## For getting ROI, Dataframe needs to be ordered in ascending order and grouped by Ticker Symbol
 portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
 
-# # Datetime not compatible with excel
+## Datetime not compatible with excel
 portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
 
 '''
@@ -162,7 +195,12 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 #
 # ------------------------------------------------
 
-all_holdings = portfolio['Ticker Symbol'].unique()
+# all_holdings = portfolio['Ticker Symbol'].unique()
+
+## Getting all tickers and isin in portfolio
+temp_df = portfolio.drop_duplicates('Ticker Symbol')
+all_holdings = temp_df[['Ticker Symbol', 'ISIN']] 
+
 watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 
              'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD', 'FSLY', 'WKHS', 'RMV', 'TW.', 'PSN', 'MU', 'AMD']
 
@@ -170,14 +208,14 @@ def returnNotMatches(a, b):
     return [x for x in b if x not in a]
 
 ## Remove stocks already in my portfolio
-watchlist = returnNotMatches(all_holdings, watchlist)
+watchlist = returnNotMatches(all_holdings['Ticker Symbol'].tolist(), watchlist)
 
 total_returns = 0
 
 holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
 returns_dict = {}
 
-for symbol in all_holdings:
+for symbol in all_holdings['Ticker Symbol'].tolist():
     
     df = portfolio[portfolio['Ticker Symbol'] == symbol]
     
@@ -306,7 +344,8 @@ def generate_holdings(all_holdings):
                 price_lis = df['Price'][:ii+1].tolist()
                 type_lis = df['Type'][:ii+1].tolist()
             
-                c = x = holdings = average = 0
+                c = holdings = average = 0 
+                #= x
                         
                 for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
                     
@@ -389,25 +428,155 @@ end = datetime.datetime.now()
 def formatting(num):
     return round(num, 2)
 
+#all_212_equities['MARKET NAME'].unique()
+
+def get_yf_symbol(market, symbol):
+    if market == 'London Stock Exchange' or market == 'LSE AIM':
+        symbol = symbol.rstrip('.')
+        yf_symbol = f'{symbol}.L'
+    elif market == 'Deutsche Börse Xetra':
+        yf_symbol = f'{symbol}.DE'
+    elif market == 'Bolsa de Madrid':
+        yf_symbol = f'{symbol}.MC'
+    elif market == 'Euronext Netherlands':
+        yf_symbol = f'{symbol}.AS'
+    elif market == 'SIX Swiss':
+        yf_symbol = f'{symbol}.SW'
+    elif market == 'Euronext Paris':
+        yf_symbol = f'{symbol}.PA'
+    else:
+        yf_symbol = symbol
+    return yf_symbol
+
+
 def generate_rsi(all_holdings):
     
-    stoky = set(['KWS', 'RDSB', 'FEVR'])
+    # stoky = set(['KWS', 'RDSB', 'FEVR'])
     
-    for symbol in all_holdings:
+    for row in all_holdings.iloc:
+    
+        symbol = row[0]
+        isin = row[1] ## Used in dataframe query
+        old_symbol = ''
+        
+        try:
+            
+            # print(symbol)
+            # print(isin)
+            
+            ## When tickers change (due to mergers or company moving market) 212 removes the old ticker from the equities table
+            ## As 212 doesn't provide the company name in the daily statement there is no way for me to link old tickers with the new one
+            ## so will manually replace tickers here
+            
+            if symbol == 'AO.':
+                old_symbol = symbol
+                symbol = symbol.rstrip('.')
+            elif symbol == 'DTG':
+                old_symbol = symbol
+                symbol = 'JET2'
+            elif symbol == 'FMCI':
+                old_symbol = symbol
+                symbol = 'TTCF'
+            elif symbol == 'SHLL':
+                old_symbol = symbol
+                symbol = 'HYLN'
+            
+            markets = all_212_equities.query('ISIN==@isin and INSTRUMENT==@symbol')['MARKET NAME']
+            
+            if len(markets) == 0:
+                market = all_212_equities[all_212_equities['INSTRUMENT'] == symbol]['MARKET NAME'].item() 
+            else:
+                market = markets.values[0]
+
+            #if len(market) == 0: print(len(market)) 
+                
+            yf_symbol = get_yf_symbol(market, symbol)    
+                     
+            index = web.DataReader(yf_symbol, 'yahoo', start, end)
+
+            ## As Keys cannot be changed symbol will go back to old symbol
+            ## TODO: look into adding a new key with new symbol and all values then remove the old one
+            
+            if old_symbol: 
+                if len(index) <= 180: # Due to 180 sma dataframe needs to be atleast 180
+                    ## Joining data from old and new ticker
+                    index2 = web.DataReader(old_symbol, 'yahoo', start, end)
+                    last_record = index2.index[-1] #Last index of old dataframe
+                    index = index[index.index > last_record]
+                    index = index2.append(index)
+                
+                symbol = old_symbol # Change symbol back to old ticker
+            
+            holdings_dict[symbol]['Today Open'] = formatting(index['Open'][-1])
+            holdings_dict[symbol]['1D'] = formatting(index['Close'][-2])
+            holdings_dict[symbol]['1W'] = formatting(index['Close'][-6])
+            holdings_dict[symbol]['1M'] = formatting(index['Close'][-29])
+            
+            ## Rearrange dataframe for stockstats module
+            cols = ['Open','Close','High','Low', 'Volume','Adj Close']
+        
+            index = index[cols]
+            
+            ## https://github.com/jealous/stockstats
+            stock = stockstats.StockDataFrame.retype(index)
+            
+            print('{}: {}'.format(symbol, stock.get('rsi_13')[-1]))
+            
+            gg = formatting(stock.get('close_9_sma')[-2]) # Price strength SMA line
+            qq = formatting(stock.get('close_180_sma')[-2]) # Directional SMA line
+            
+            # if stock['open'][-2] > stock['close'][-2]:
+            if stock['close'][-3] > stock['close'][-2]:
+                # Trending downward
+                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed downward ↓' #potential sell
+                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↓'
+                else:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↓'
+                    
+                    
+                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↓'
+                else:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↓'
+                
+            else:
+                #Trending upward
+                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed upward ↓' #potential buy
+                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↑'
+                else:
+                    holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↑'
+            
+                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↑'
+                else:
+                    holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↑'
+            
+            
+            holdings_dict[symbol]['RSI'] = formatting(stock.get('rsi_13')[-1])
+        except IndexError as e:
+            print(f"Not enough data on Stock {symbol} for RSI")
+            print(e)
+            pass
+        except Exception as e:
+            print(f"Couldn't find symbol {symbol} in lookup table")
+            print(e)
+            pass
+
+def generate_rsi_watchlist(all_holdings):
+    
+    #stoky = set(['KWS', 'RDSB', 'FEVR'])
+    
+    for symbol in watchlist:
     
         try:
               
-            looky = stock_list_lookup.loc[stock_list_lookup['ticker'] == symbol]
-            if looky['Market name '].head(1).to_string(index=False).strip() == 'London Stock Exchange':
-                #remove trailing . from BA. (BAE SYSTEMS)
-                yf_symbol = symbol.rstrip('.')
-                yf_symbol = f'{yf_symbol}.L'
-            elif symbol in stoky:
-                yf_symbol = f'{symbol}.L'            
-            elif symbol == 'EXSH':
-                yf_symbol = f'{symbol}.MI'
-            else:
-                yf_symbol = symbol
+            market = all_212_equities[all_212_equities['INSTRUMENT'] == symbol]['MARKET NAME'].values[0] 
+            
+            yf_symbol = get_yf_symbol(market, symbol)    
             
             index = web.DataReader(yf_symbol, 'yahoo', start, end)
             
@@ -464,6 +633,7 @@ def generate_rsi(all_holdings):
         except:
             print(f"Couldn't find symbol {symbol} in lookup table")
             pass
+
     
 def send_email(rsi_dict):
     
@@ -481,9 +651,15 @@ def send_email(rsi_dict):
     x.align = "c" 
     
     for key, val in holdings_dict.items():
-        #print(key)
-        x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['9_sma'], val['180_sma'], val['RSI']])
-    
+        #TODO: FI
+        try:
+            print(key)
+            print(val['1M'])
+            x.add_row([key, val['Current Holdings'], val['Current Average'], val['1M'], val['1W'], val['1D'], val['Today Open'], val['9_sma'], val['180_sma'], val['RSI']])
+        except:
+            print(f"Insufficient data {symbol}")
+            pass
+        
     x.sortby = "RSI"
     
     html = x.get_html_string(attributes={"name":"stocks_table"})
@@ -506,13 +682,14 @@ def send_email(rsi_dict):
         server.sendmail(sender_email, receiver_email, message.as_string())
 
 ## Current holdings in portfolio
-generate_holdings(all_holdings)
+generate_holdings(all_holdings['Ticker Symbol'].tolist())
 
 ## Add watchlist for html table
 generate_holdings(watchlist)
 
 generate_rsi(all_holdings)
-generate_rsi(watchlist)
+
+generate_rsi_watchlist(watchlist)
 
 send_email(holdings_dict)
 
