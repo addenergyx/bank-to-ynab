@@ -26,4 +26,4 @@ def update_database():
     data = pd.read_csv(r"C:\Users\david\OneDrive\Desktop\banktoks.csv")   
     data.to_sql('banking', engine, if_exists='replace')
     
-update_database()
+#update_database()
