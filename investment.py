@@ -164,6 +164,9 @@ portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=Tr
 ## Datetime not compatible with excel
 portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
 
+## TODO: Temp fix by changing DTG to Jet2, Dartgroup changed their ticker symbol to JET2
+portfolio.replace('DTG','JET2', inplace=True)
+
 '''
 Things to take note when creating a Transactions Portfolio for Simply Wall St:
 
@@ -197,8 +200,9 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 
 # all_holdings = portfolio['Ticker Symbol'].unique()
 
-## Getting all tickers and isin in portfolio
+## Getting all tickers and isin from portfolio
 temp_df = portfolio.drop_duplicates('Ticker Symbol')
+
 all_holdings = temp_df[['Ticker Symbol', 'ISIN']] 
 
 watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 
@@ -700,36 +704,107 @@ generate_rsi_watchlist(watchlist)
 
 send_email(holdings_dict)
 
-# import plotly.express as px
-# from plotly.offline import plot
-# import plotly.graph_objects as go
+import plotly.express as px
+from plotly.offline import plot
+import plotly.graph_objects as go
+from datetime import timedelta
 
-# monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
-# monthly_returns_df.reset_index(level=0, inplace=True)
-# fig = px.bar(monthly_returns_df, x='Date', y='Returns', color='Date')
-# plot(fig)
+monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
+monthly_returns_df.reset_index(level=0, inplace=True)
+fig = px.bar(monthly_returns_df, x='Date', y='Returns', color='Date')
+plot(fig)
 
-# fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date')
-# plot(fig)
+fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date')
+plot(fig)
 
-# weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change type period to string
-# weekly_returns_df.reset_index(level=0, inplace=True)
-# weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] # Week ending
-# fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date')
-# plot(fig)
+weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change type period to string
+weekly_returns_df.reset_index(level=0, inplace=True)
+weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] # Week ending
+
+weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelta(days=-2) # Last working day of week
+
+fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date')
+plot(fig)
+
+index = web.DataReader('TSLA', 'yahoo', start, end)
+index = index.reset_index()
+fig = px.line(index, x="Date", y="Close")
+plot(fig)
 
 
+## My Tesla Portfolio Performance 
 
+tsla = portfolio[portfolio['Ticker Symbol'] == 'TSLA']
 
+tsla['dolla'] = tsla['Price'] / tsla['Exchange rate']
+tsla['Trading day'] = pd.to_datetime(tsla['Trading day']) # Match index data format
 
+mask = (tsla['Trading day'] > datetime.datetime(2020, 2, 10)) & (tsla['Trading day'] <= datetime.datetime.now())
 
+tsla = tsla.loc[mask]
 
+fig = px.scatter(tsla, x='Trading day', y='Price', color='Type')
+plot(fig)
+
+buys = tsla[tsla['Type']=='Buy']
+sells = tsla[tsla['Type']=='Sell']
+
+def transform_row(r):
+    if r['Trading day'] <= datetime.datetime(2020, 8, 30): # Tesla 5 for 1 Stock split
+        r.dolla = r.dolla/5
+    return r
+
+buys = buys.apply(transform_row, axis=1)
+sells = sells.apply(transform_row, axis=1)
+
+## Graph
+
+fig = go.Figure()
+
+# Add traces
+fig.add_trace(go.Scatter(x=index['Date'], y=index['Close'],
+                    mode='lines'))
+
+# fig.add_trace(go.Scatter(x=index['Date'], y=index['Open'],
+#                     mode='lines'))
+
+# fig.add_trace(go.Scatter(x=index['Date'], y=index['Low'],
+#                     mode='lines'))
+
+# fig.add_trace(go.Scatter(x=index['Date'], y=index['High'],
+#                     mode='lines'))
+
+# Buys
+fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+                    mode='markers',
+                    name='Buy point'
+                    ))
+# Sells
+fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
+                    mode='markers',
+                    name='Sell point'
+                    ))
+plot(fig)
+     
             
             
             
-            
-            
-            
-            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             
             
