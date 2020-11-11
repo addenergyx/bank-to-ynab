@@ -20,6 +20,7 @@ import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from prettytable import PrettyTable
+import re
 
 load_dotenv(verbose=True, override=True)
 
@@ -46,6 +47,8 @@ port = 993
 
 SMTP_SERVER = "imap.gmail.com"
 
+## Creating portfolio
+
 mail = imaplib.IMAP4_SSL(SMTP_SERVER)
 
 mail.login(email_user, email_pass)
@@ -62,7 +65,9 @@ column_headers = ['Order ID', 'Ticker Symbol', 'Type',
 
 mailbox_list = mailbox[0].split()
 
-## Scrap Trading212 site stocks ##
+## Scraping Trading212 site ##
+
+## Stocks
 ## Need this to put the right trailing value for yahoo finance (i.e .L/.MI)
 url = "https://www.trading212.com/en/Trade-Equities"
 
@@ -138,6 +143,71 @@ for item in mailbox_list:
                         data.append(row_list[1:])
     
 portfolio = pd.DataFrame(data, columns=column_headers)
+
+## Monthly summary
+
+mail.select('dividends')
+
+status, mailbox = mail.search(None, 'ALL')
+
+mailbox_list = mailbox[0].split()
+
+data = []
+
+for item in mailbox_list:
+    
+# for num in data[0].split():
+    status, body = mail.fetch(item, '(RFC822)')
+    email_msg = body[0][1]
+
+    raw_email = email_msg.decode('utf-8')
+
+    email_message = email.message_from_bytes(email_msg)
+
+    counter = 1
+    for part in email_message.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        filename = part.get_filename()
+        if not filename:
+            ext = '.html'
+            filename = 'msg-part%08d%s' %(counter, ext)
+        
+        counter += 1
+        
+        content_type = part.get_content_type()
+        # print(content_type)
+        
+        summary = ['Date', 'Dividends', 'Opening balance', 'Closing balance']
+        
+        if "html" in content_type:
+            html_ = part.get_payload()
+            soup = BeautifulSoup(html_, 'html.parser')
+        
+            # Doesn't work, half info box missing
+            # inv = soup.select('table[class*="info"]')[1] # Use inspect tool in outlook not gmail because classnames don't appear in gmail
+            # rows = inv.findChildren(['th', 'tr'])
+            
+            row_list = []
+            
+            month = soup.find(text=re.compile('Closed transactions'))
+            month = re.sub('[^0-9-]','', month)
+            
+            row_list.append(month)
+            
+            for x in summary[1:]:
+                value = float(re.sub('[^0-9.]', '', soup.find(text=re.compile(x)).findNext('td').text))
+                row_list.append(value)
+            
+            data.append(row_list)
+
+summary_df = pd.DataFrame(data, columns=summary)
+
+now = datetime.datetime.now()
+
+summary_df.loc[len(summary_df)] = [f'{now.year}-{now.month}' , '-', summary_df.loc[len(summary_df)-1]['Closing balance'], '-']
+ 
+summary_df['Target'] = summary_df['Opening balance'] * .05 # Aim for 5% returns a month
 
 # ace.columns = ace.columns.str[4:]
 # ace.drop('No', axis=1, inplace=True)
@@ -418,7 +488,7 @@ and the current gain loss:
 #rsi_dict = {}
 
 # Trading 212 stock list [Invest] google sheet (separators ";", encoding = "utf_16")
-stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", sep=';')
+#stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", sep=';')
 
 #AIR.PA ABF.L 
 # use lookup table 
@@ -440,6 +510,8 @@ def formatting(num):
     return round(num, 2)
 
 #all_212_equities['MARKET NAME'].unique()
+
+## For the yahoo finance api, stocks outside of the US have trailing symbols to state which market they are from
 
 def get_yf_symbol(market, symbol):
     if market == 'London Stock Exchange' or market == 'LSE AIM':
@@ -711,10 +783,24 @@ from datetime import timedelta
 
 monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
 monthly_returns_df.reset_index(level=0, inplace=True)
-fig = px.bar(monthly_returns_df, x='Date', y='Returns', color='Date')
+
+# Monthly Returns and targets
+fig = go.Figure(data=[
+    go.Scatter(name='Target', x=summary_df['Date'], y=summary_df['Target']),
+    go.Scatter(name='Minimun Goal', x=summary_df['Date'], y=[100 for x in range(len(summary_df['Date']))]),
+    go.Bar(name='Return', x=monthly_returns_df['Date'], y=monthly_returns_df['Returns']),
+])
+
+# Change the bar mode
+fig.update_layout(barmode='overlay')
 plot(fig)
 
+# Daily Returns
 fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date')
+plot(fig)
+
+# Dividends
+fig = px.bar(summary_df, x='Date', y='Dividends', color='Date')
 plot(fig)
 
 weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change type period to string
@@ -723,16 +809,16 @@ weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] #
 
 weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelta(days=-2) # Last working day of week
 
+# Weekly Returns
 fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date')
 plot(fig)
+
+## My Tesla Portfolio Performance 
 
 index = web.DataReader('TSLA', 'yahoo', start, end)
 index = index.reset_index()
 fig = px.line(index, x="Date", y="Close")
 plot(fig)
-
-
-## My Tesla Portfolio Performance 
 
 tsla = portfolio[portfolio['Ticker Symbol'] == 'TSLA']
 
@@ -785,13 +871,127 @@ fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
                     name='Sell point'
                     ))
 plot(fig)
-     
             
-            
-            
+stocks = portfolio['Ticker Symbol'].value_counts()         
+stocks = stocks.reset_index()           
+fig = px.pie(stocks, values='Ticker Symbol', names='index')
+plot(fig)
 
 
+def chart(ticker):
 
+    market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
+            
+    yf_symbol = get_yf_symbol(market, ticker)   
+        
+    index = web.DataReader(yf_symbol, 'yahoo', start, end)
+    index = index.reset_index()
+    
+    df = portfolio[portfolio['Ticker Symbol'] == ticker]
+    
+    df['dolla'] = df['Price'] / df['Exchange rate']
+    df['Trading day'] = pd.to_datetime(df['Trading day']) # Match index data format
+    
+    buys = df[df['Type']=='Buy']
+    sells = df[df['Type']=='Sell']
+    
+    ## Graph
+    
+    fig = go.Figure()
+    
+    # Add traces
+    fig.add_trace(go.Scatter(x=index['Date'], y=index['Close'],
+                        mode='lines',
+                        name=f'{ticker} Close Price'))
+    
+    # Buys
+    fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+                        mode='markers',
+                        name='Buy point'
+                        ))
+    # Sells
+    fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
+                        mode='markers',
+                        name='Sell point'
+                        ))
+    
+    fig.update_layout(title=f'{ticker}')
+    
+    plot(fig)
+
+aaa = portfolio['Ticker Symbol'].value_counts().head()
+
+for stock in aaa.index:
+    chart(stock)
+
+
+## Facebook Prophet
+    
+from fbprophet import Prophet
+
+model = Prophet()
+
+end = datetime.datetime.now()
+start = datetime.datetime(end.year - 5, end.month, end.day)
+
+df = web.DataReader('^VIX', 'yahoo', start, end)
+df = df.reset_index()
+
+# Have to rename columns for fbprophet
+# Dataframe must have columns "ds" and "y" with the dates and values respectively.
+
+df[['ds', 'y']] = df[['Date', 'Adj Close']]
+
+model.fit(df)
+
+future = model.make_future_dataframe(periods=30)
+forecast = model.predict(future)
+
+model.plot(forecast)
+
+trace = go.Scatter(
+    name = 'Actual price',
+    mode = 'markers',
+    x = list(forecast['ds']),
+    y = list(df['y']),
+)
+
+trace1 = go.Scatter(
+    name = 'trend',
+    mode = 'lines',
+    x = list(forecast['ds']),
+    y = list(forecast['yhat']),
+    marker=dict(
+        #color='blue',
+        line=dict(width=3)
+    )
+)
+
+upper_band = go.Scatter(
+    name = 'upper band',
+    mode = 'lines',
+    x = list(forecast['ds']),
+    y = list(forecast['yhat_upper']),
+    #line= dict(color='#57b88f'),
+    fill = 'tonexty'
+)
+
+lower_band = go.Scatter(
+    name= 'lower band',
+    mode = 'lines',
+    x = list(forecast['ds']),
+    y = list(forecast['yhat_lower']),
+    #line= dict(color='red')
+)
+
+data = [ trace1, lower_band, upper_band, trace]
+
+layout = dict(title='Stock Price Estimation Using FbProphet',
+             xaxis=dict(title = 'Dates', ticklen=2, zeroline=True))
+
+figure=dict(data=data,layout=layout)
+
+plot(figure)
 
 
 
