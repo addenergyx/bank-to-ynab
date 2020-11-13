@@ -33,6 +33,13 @@ fallers = pd.read_csv('fallers.csv')
 
 columns = ['Stock', 'Position', 'Start', 'End', 'Date', 'User_change', 'Percentage_change', 'Last_updated']
 
+# ase = leaderboard[leaderboard['Date'] == '11-11-2020'].reset_index(drop=True)
+# ase['Position'] = list(ase.index+1)
+
+## For webapp
+overall_leaderboard = leaderboard.drop_duplicates('Stock', keep='first').reset_index(drop=True)
+overall_leaderboard['Position'] = list(overall_leaderboard.index+1)
+
 ## ------------------------- Selenium Setup ------------------------- ##
 
 def get_driver():
@@ -90,9 +97,27 @@ df = pd.concat([data, leaderboard], ignore_index=True)
 #https://stackoverflow.com/questions/12497402/python-pandas-remove-duplicates-by-columns-a-keeping-the-row-with-the-highest
 complete_df = df.sort_values('User_count', ascending=False).drop_duplicates(['Stock','Date'], keep='first').reset_index(drop=True) #.sort_index()
 
-## Reset positions, use list() so it's int instead of string
-complete_df['Position'] = list(complete_df.index+1)
+## Fix positions column
+
+#complete_df['Last_updated'] = pd.to_datetime(complete_df.Last_updated)
+complete_df['Date'] = pd.to_datetime(complete_df.Date)
+complete_df = complete_df.sort_values(['Date', 'User_count'], ascending=[True, False])
+
+comp = pd.DataFrame()
+
+for d in complete_df['Date'].unique():
+    temp_df = complete_df[complete_df['Date'] == d].reset_index(drop=True)
+    temp_df['Position'] = list(temp_df.index+1)
+    comp = comp.append(temp_df, ignore_index=True)
+
+complete_df = comp.copy()
+complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
 complete_df.to_csv('leaderboard.csv', index=False)
+
+## Position in dataset
+# complete_df = complete_df.sort_values('User_count', ascending=False)
+## Reset positions, use list() so it's int instead of string
+# complete_df['Position'] = list(complete_df.index+1)
 
 ## ------------------------- Daily Risers/Fallers ------------------------- ##
 
@@ -130,9 +155,27 @@ def user_data(xpath, file, historical_df):
     
     df = pd.concat([data, historical_df], ignore_index=True)
     
-    complete_df = df.sort_values('User_change', ascending=False).drop_duplicates(['Stock','Date'], keep='first').reset_index(drop=True) #.sort_index()
+    ## To fix fallers position column make column abs then times by -1 after reorder
     
-    complete_df['Position'] = list(complete_df.index+1)
+    complete_df = df.sort_values('User_change', ascending=False).drop_duplicates(['Stock','Date'], keep='first').reset_index(drop=True)
+    
+    complete_df['User_change'] = complete_df['User_change'].abs()
+    
+    complete_df['Date'] = pd.to_datetime(complete_df.Date)
+    
+    complete_df = complete_df.sort_values(['Date', 'User_change'], ascending=[True, False])
+
+    comp = pd.DataFrame()
+    
+    for d in complete_df['Date'].unique():
+        temp_df = complete_df[complete_df['Date'] == d].reset_index(drop=True)
+        temp_df['Position'] = list(temp_df.index+1)
+        comp = comp.append(temp_df, ignore_index=True)
+    
+    complete_df = comp.copy()
+    
+    #complete_df['User_change'] = complete_df['User_change'] * -1
+    complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
     complete_df.to_csv(file, index=False)
     
     return complete_df
