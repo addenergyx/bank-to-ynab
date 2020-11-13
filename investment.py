@@ -235,6 +235,10 @@ portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=Tr
 portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
 
 ## TODO: Temp fix by changing DTG to Jet2, Dartgroup changed their ticker symbol to JET2
+
+## Look into combining tickers using code like this 
+## gb.loc[gb["geo_code"]=="E41000052",'geo_code'] = "E06000052" (Visual Analytics Week 7 lab007)
+
 portfolio.replace('DTG','JET2', inplace=True)
 
 '''
@@ -716,7 +720,7 @@ def generate_rsi_watchlist(all_holdings):
         except:
             print(f"Couldn't find symbol {symbol} in lookup table")
             pass
-
+## ------------------------- Email ------------------------- ##
     
 def send_email(rsi_dict):
     
@@ -776,6 +780,9 @@ generate_rsi_watchlist(watchlist)
 
 send_email(holdings_dict)
 
+## ------------------------- Graphs ------------------------- ##
+
+
 import plotly.express as px
 from plotly.offline import plot
 import plotly.graph_objects as go
@@ -792,15 +799,20 @@ fig = go.Figure(data=[
 ])
 
 # Change the bar mode
-fig.update_layout(barmode='overlay')
+fig.update_layout(barmode='overlay', title='Monthly Returns and targets')
+plot(fig)
+
+# Cumsum
+fig = px.bar(monthly_returns_df, x='Date', y='Returns', color='Date', title='Running Total Realised Returns')
 plot(fig)
 
 # Daily Returns
-fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date')
+fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date', title='Daily Returns')
 plot(fig)
+## TODO: On click show all trades that day: daily_returns_df[daily_returns_df['Date'] == day_clicked]
 
 # Dividends
-fig = px.bar(summary_df, x='Date', y='Dividends', color='Date')
+fig = px.bar(summary_df, x='Date', y='Dividends', color='Date', title='Dividends')
 plot(fig)
 
 weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change type period to string
@@ -810,10 +822,10 @@ weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] #
 weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelta(days=-2) # Last working day of week
 
 # Weekly Returns
-fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date')
+fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date', title='Weekly Returns')
 plot(fig)
 
-## My Tesla Portfolio Performance 
+## ------------------------- Tesla Portfolio Performance ------------------------- ##
 
 index = web.DataReader('TSLA', 'yahoo', start, end)
 index = index.reset_index()
@@ -829,7 +841,7 @@ mask = (tsla['Trading day'] > datetime.datetime(2020, 2, 10)) & (tsla['Trading d
 
 tsla = tsla.loc[mask]
 
-fig = px.scatter(tsla, x='Trading day', y='Price', color='Type')
+fig = px.scatter(tsla, x='Trading day', y='Price', color='Type', title='Daily Returns')
 plot(fig)
 
 buys = tsla[tsla['Type']=='Buy']
@@ -870,11 +882,15 @@ fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
                     mode='markers',
                     name='Sell point'
                     ))
+
+fig.update_layout(title='Tesla Trading Activity')
 plot(fig)
-            
+
+## Stock activity - How many times I've bought/sold a stock         
 stocks = portfolio['Ticker Symbol'].value_counts()         
-stocks = stocks.reset_index()           
-fig = px.pie(stocks, values='Ticker Symbol', names='index')
+stocks = stocks.reset_index()
+stocks.columns = ['Ticker Symbol', 'Value']           
+fig = px.pie(stocks, values='Value', names='Ticker Symbol', title='Portfolio Trading Activity')
 plot(fig)
 
 
@@ -915,7 +931,7 @@ def chart(ticker):
                         name='Sell point'
                         ))
     
-    fig.update_layout(title=f'{ticker}')
+    fig.update_layout(title=f'{ticker} Buy/Sell points')
     
     plot(fig)
 
@@ -925,7 +941,7 @@ for stock in aaa.index:
     chart(stock)
 
 
-## Facebook Prophet
+## ------------------------- Facebook Prophet ------------------------- ##
     
 from fbprophet import Prophet
 
