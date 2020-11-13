@@ -14,9 +14,6 @@ import schedule
 import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import pandas as pd
-from sqlalchemy import create_engine
-import re
 
 from data import get_tokens
 
