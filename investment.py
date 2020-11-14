@@ -226,13 +226,13 @@ portfolio[['Ticker Symbol', 'ISIN']] = portfolio['Ticker Symbol'].str.split('/',
 ## Airbus changed their ticker symbol
 portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
-portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], format='%d-%m-%Y') #pd.to_datetime(portfolio["Trading day"]).dt.strftime('%m-%d-%Y')
+portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], format='%d-%m-%Y', dayfirst=True) #pd.to_datetime(portfolio["Trading day"]).dt.strftime('%m-%d-%Y')
 
 ## For getting ROI, Dataframe needs to be ordered in ascending order and grouped by Ticker Symbol
 portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
 
 ## Datetime not compatible with excel
-portfolio['Trading day'] = portfolio['Trading day'].dt.strftime('%d-%m-%Y')
+#portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], dayfirst=True)
 
 ## TODO: Temp fix by changing DTG to Jet2, Dartgroup changed their ticker symbol to JET2
 
@@ -543,7 +543,7 @@ def generate_rsi(all_holdings):
     for row in all_holdings.iloc:
     
         symbol = row[0]
-        isin = row[1] ## Used in dataframe query
+        isin = row[1] ## Used in dataframe query, do not delete
         old_symbol = ''
         
         try:
@@ -886,6 +886,26 @@ fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
 fig.update_layout(title='Tesla Trading Activity')
 plot(fig)
 
+
+## Simple Candlestick
+fig = go.Figure(data=[go.Candlestick(x=index['Date'],
+                open=index['Open'],
+                high=index['High'],
+                low=index['Low'],
+                close=index['Close'])])
+
+fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
+                    mode='markers',
+                    name='Sell point'
+                    ))
+
+fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+                    mode='markers',
+                    name='Buy point'
+                    ))
+
+plot(fig)
+
 ## Stock activity - How many times I've bought/sold a stock         
 stocks = portfolio['Ticker Symbol'].value_counts()         
 stocks = stocks.reset_index()
@@ -939,7 +959,6 @@ aaa = portfolio['Ticker Symbol'].value_counts().head()
 
 for stock in aaa.index:
     chart(stock)
-
 
 ## ------------------------- Facebook Prophet ------------------------- ##
     
