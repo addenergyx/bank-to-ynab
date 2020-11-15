@@ -223,6 +223,9 @@ for column in float_values:
 ## Split ISIN and stock, need ISIN because some companies have the same ticker symbol, ISIN is the uid
 portfolio[['Ticker Symbol', 'ISIN']] = portfolio['Ticker Symbol'].str.split('/', expand=True)
 
+## TODO: Temp fix by changing DTG to Jet2, Dartgroup changed their ticker symbol to JET2
+portfolio.replace('DTG','JET2', inplace=True)
+
 ## Airbus changed their ticker symbol
 portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
@@ -234,12 +237,8 @@ portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=Tr
 ## Datetime not compatible with excel
 #portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], dayfirst=True)
 
-## TODO: Temp fix by changing DTG to Jet2, Dartgroup changed their ticker symbol to JET2
-
 ## Look into combining tickers using code like this 
 ## gb.loc[gb["geo_code"]=="E41000052",'geo_code'] = "E06000052" (Visual Analytics Week 7 lab007)
-
-portfolio.replace('DTG','JET2', inplace=True)
 
 '''
 Things to take note when creating a Transactions Portfolio for Simply Wall St:
@@ -507,7 +506,7 @@ and the current gain loss:
 #     symbol = f'{symbol}.L'
 # elif looky['Market name '].head(1).to_string(index=False).strip() is 'London Stock Exchange':   
     
-start = datetime.datetime(2020, 2, 8)
+start = datetime.datetime(2020, 2, 8) # 3 Months before I started trading 
 end = datetime.datetime.now()    
 
 def formatting(num):
@@ -594,10 +593,12 @@ def generate_rsi(all_holdings):
                 
                 symbol = old_symbol # Change symbol back to old ticker
             
+            # Using adjusted closing price as it amends a stock's closing price to reflect that stock's value after 
+            # accounting for any corporate actions such as Stock Splits, Dividends and Rights Offerings
             holdings_dict[symbol]['Today Open'] = formatting(index['Open'][-1])
-            holdings_dict[symbol]['1D'] = formatting(index['Close'][-2])
-            holdings_dict[symbol]['1W'] = formatting(index['Close'][-6])
-            holdings_dict[symbol]['1M'] = formatting(index['Close'][-29])
+            holdings_dict[symbol]['1D'] = formatting(index['Adj Close'][-2])
+            holdings_dict[symbol]['1W'] = formatting(index['Adj Close'][-6])
+            holdings_dict[symbol]['1M'] = formatting(index['Adj Close'][-29])
             
             ## Rearrange dataframe for stockstats module
             cols = ['Open','Close','High','Low', 'Volume','Adj Close']
@@ -613,31 +614,31 @@ def generate_rsi(all_holdings):
             qq = formatting(stock.get('close_180_sma')[-2]) # Directional SMA line
             
             # if stock['open'][-2] > stock['close'][-2]:
-            if stock['close'][-3] > stock['close'][-2]:
+            if stock['adj close'][-3] > stock['adj close'][-2]:
                 # Trending downward
-                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                if stock['adj close'][-2] <= gg <= stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed downward ↓' #potential sell
-                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                elif gg > stock['adj close'][-2] and gg > stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↓'
                 else:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↓'
                     
                     
-                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                if qq > stock['adj close'][-2] and qq > stock['open'][-2]:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↓'
                 else:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↓'
                 
             else:
                 #Trending upward
-                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                if stock['adj close'][-2] <= gg <= stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed upward ↓' #potential buy
-                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                elif gg > stock['adj close'][-2] and gg > stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↑'
                 else:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↑'
             
-                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                if qq > stock['adj close'][-2] and qq > stock['open'][-2]:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↑'
                 else:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↑'
@@ -668,9 +669,9 @@ def generate_rsi_watchlist(all_holdings):
             index = web.DataReader(yf_symbol, 'yahoo', start, end)
             
             holdings_dict[symbol]['Today Open'] = formatting(index['Open'][-1])
-            holdings_dict[symbol]['1D'] = formatting(index['Close'][-2])
-            holdings_dict[symbol]['1W'] = formatting(index['Close'][-6])
-            holdings_dict[symbol]['1M'] = formatting(index['Close'][-29])
+            holdings_dict[symbol]['1D'] = formatting(index['Adj Close'][-2])
+            holdings_dict[symbol]['1W'] = formatting(index['Adj Close'][-6])
+            holdings_dict[symbol]['1M'] = formatting(index['Adj Close'][-29])
             
             ## Rearrange dataframe for stockstats module
             cols = ['Open','Close','High','Low', 'Volume','Adj Close']
@@ -686,31 +687,31 @@ def generate_rsi_watchlist(all_holdings):
             qq = formatting(stock.get('close_180_sma')[-2]) # Directional SMA line
             
             # if stock['open'][-2] > stock['close'][-2]:
-            if stock['close'][-3] > stock['close'][-2]:
+            if stock['adj close'][-3] > stock['adj close'][-2]:
                 # Trending downward
-                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                if stock['adj close'][-2] <= gg <= stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed downward ↓' #potential sell
-                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                elif gg > stock['adj close'][-2] and gg > stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↓'
                 else:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↓'
                     
                     
-                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                if qq > stock['adj close'][-2] and qq > stock['open'][-2]:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↓'
                 else:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↓'
                 
             else:
                 #Trending upward
-                if stock['close'][-2] <= gg <= stock['open'][-2]:
+                if stock['adj close'][-2] <= gg <= stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Crossed upward ↓' #potential buy
-                elif gg > stock['close'][-2] and gg > stock['open'][-2]:
+                elif gg > stock['adj close'][-2] and gg > stock['open'][-2]:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Above stock ↑'
                 else:
                     holdings_dict[symbol]['9_sma'] = f'{gg}: Below stock ↑'
             
-                if qq > stock['close'][-2] and qq > stock['open'][-2]:
+                if qq > stock['adj close'][-2] and qq > stock['open'][-2]:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Above stock ↑'
                 else:
                     holdings_dict[symbol]['180_sma'] = f'{qq}: Below stock ↑'
@@ -782,7 +783,6 @@ send_email(holdings_dict)
 
 ## ------------------------- Graphs ------------------------- ##
 
-
 import plotly.express as px
 from plotly.offline import plot
 import plotly.graph_objects as go
@@ -825,11 +825,18 @@ weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelt
 fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date', title='Weekly Returns')
 plot(fig)
 
+# Buy/Sell
+counts = portfolio['Type'].value_counts()       
+counts_df = counts.reset_index()
+counts_df.columns = ['Type', 'Count']
+fig = px.pie(counts_df, values='Count', names='Type')
+plot(fig)
+
 ## ------------------------- Tesla Portfolio Performance ------------------------- ##
 
 index = web.DataReader('TSLA', 'yahoo', start, end)
 index = index.reset_index()
-fig = px.line(index, x="Date", y="Close")
+fig = px.line(index, x="Date", y="Adj Close")
 plot(fig)
 
 tsla = portfolio[portfolio['Ticker Symbol'] == 'TSLA']
@@ -859,18 +866,11 @@ sells = sells.apply(transform_row, axis=1)
 
 fig = go.Figure()
 
+## TODO: Allow user to switch between line and candlestick chart
+
 # Add traces
-fig.add_trace(go.Scatter(x=index['Date'], y=index['Close'],
+fig.add_trace(go.Scatter(x=index['Date'], y=index['Adj Close'], 
                     mode='lines'))
-
-# fig.add_trace(go.Scatter(x=index['Date'], y=index['Open'],
-#                     mode='lines'))
-
-# fig.add_trace(go.Scatter(x=index['Date'], y=index['Low'],
-#                     mode='lines'))
-
-# fig.add_trace(go.Scatter(x=index['Date'], y=index['High'],
-#                     mode='lines'))
 
 # Buys
 fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
@@ -886,39 +886,50 @@ fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
 fig.update_layout(title='Tesla Trading Activity')
 plot(fig)
 
-
 ## Simple Candlestick
 fig = go.Figure(data=[go.Candlestick(x=index['Date'],
                 open=index['Open'],
                 high=index['High'],
                 low=index['Low'],
-                close=index['Close'])])
+                close=index['Adj Close'],
+                name='Stock')])
 
 fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
                     mode='markers',
-                    name='Sell point'
+                    name='Sell point',
+                    #marker=dict(color='#ff7f0e')
+                    marker=dict(size=7,
+                                line=dict(width=2,
+                                          color='DarkSlateGrey')),
                     ))
 
 fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
                     mode='markers',
-                    name='Buy point'
+                    name='Buy point',
+                    marker=dict(size=7,
+                                line=dict(width=2,
+                                          color='DarkSlateGrey')),
                     ))
+
+fig.update_layout(hovermode="x unified", title='Tesla Stock Graph') # Currently plotly doesn't support hover for overlapping points in same trace
 
 plot(fig)
 
 ## Stock activity - How many times I've bought/sold a stock         
 stocks = portfolio['Ticker Symbol'].value_counts()         
 stocks = stocks.reset_index()
-stocks.columns = ['Ticker Symbol', 'Value']           
-fig = px.pie(stocks, values='Value', names='Ticker Symbol', title='Portfolio Trading Activity')
+stocks.columns = ['Ticker Symbol', 'Count']           
+fig = px.pie(stocks, values='Count', names='Ticker Symbol', title='Portfolio Trading Activity')
 plot(fig)
-
 
 def chart(ticker):
 
     market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
             
     yf_symbol = get_yf_symbol(market, ticker)   
+    
+    start = datetime.datetime(2020, 2, 8)
+    end = datetime.datetime.now()    
         
     index = web.DataReader(yf_symbol, 'yahoo', start, end)
     index = index.reset_index()
@@ -931,34 +942,142 @@ def chart(ticker):
     buys = df[df['Type']=='Buy']
     sells = df[df['Type']=='Sell']
     
-    ## Graph
+    ## Candlestick Graph
+        
+    fig = go.Figure(data=[go.Candlestick(x=index['Date'],
+                    open=index['Open'],
+                    high=index['High'],
+                    low=index['Low'],
+                    close=index['Adj Close'],
+                    name='Stock')])
     
-    fig = go.Figure()
-    
-    # Add traces
-    fig.add_trace(go.Scatter(x=index['Date'], y=index['Close'],
-                        mode='lines',
-                        name=f'{ticker} Close Price'))
-    
-    # Buys
-    fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
-                        mode='markers',
-                        name='Buy point'
-                        ))
-    # Sells
     fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
                         mode='markers',
-                        name='Sell point'
+                        name='Sell point',
+                        #marker=dict(color='#ff7f0e')
+                        marker=dict(size=7,
+                                    line=dict(width=2,
+                                              color='DarkSlateGrey')),
+                        ))
+
+    fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+                        mode='markers',
+                        name='Buy point',
+                        #marker=dict(color='#1f77b4')
+                        marker=dict(size=7,
+                                    line=dict(width=2,
+                                              color='DarkSlateGrey')),
                         ))
     
-    fig.update_layout(title=f'{ticker} Buy/Sell points')
+    fig.update_layout(hovermode="x unified", title=f'{ticker} Buy/Sell points')
     
     plot(fig)
+
+## Top 5 Portfolio Performance 
 
 aaa = portfolio['Ticker Symbol'].value_counts().head()
 
 for stock in aaa.index:
     chart(stock)
+
+## ------------------------- Buy/Sell Performance ------------------------- ##
+
+index['Midpoint'] = (index['High'] + index['Low']) / 2
+
+buy_target = []
+sell_target = []
+
+for i, row in buys.iterrows():
+    mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+    
+    if row['dolla'] < mid:
+        buy_target.append(1)
+    else:
+        buy_target.append(0)
+
+for i, row in sells.iterrows():
+    mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+    
+    if row['dolla'] > mid:
+        sell_target.append(1)
+    else:
+        sell_target.append(0)
+
+buys['Target'] = buy_target
+sells['Target'] = sell_target
+
+# buy['Target'] = 
+#buys.loc[buys['dolla'] < index[index['Date'] == buys['Trading day']]['Midpoint'].values[0], 'test'] = 1
+
+## Continous colour graph https://plotly.com/python/discrete-color/
+
+fig = go.Figure(data=[go.Candlestick(x=index['Date'],
+                open=index['Open'],
+                high=index['High'],
+                low=index['Low'],
+                close=index['Adj Close'],
+                name='Stock')])
+
+fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
+fig1.update_traces(marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
+fig.add_trace(fig1.data[0])
+
+fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
+fig2.update_traces( marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
+fig.add_trace(fig2.data[0])
+
+fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
+
+#fig.update_layout(coloraxis_showscale=False)
+
+plot(fig)
+
+## Discrete color graph
+
+fig = go.Figure(data=[go.Candlestick(x=index['Date'],
+                open=index['Open'],
+                high=index['High'],
+                low=index['Low'],
+                close=index['Adj Close'],
+                name='Stock')])
+
+# Must be a string for plotly to see it as a discrete value
+sells['Target'] = sells['Target'].astype(str)
+buys['Target'] = buys['Target'].astype(str)
+
+fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
+fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+fig1.data[0].name = 'Successful Sell Point'
+fig1.data[1].name = 'Unsuccessful Sell Point'
+fig.add_trace(fig1.data[0])
+fig.add_trace(fig1.data[1])
+
+fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
+#fig2.update_traces(marker=dict(color='blue'))
+#fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
+fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+fig2.data[0].name = 'Successful Buy Point'
+fig2.data[1].name = 'Unsuccessful Buy Point'
+fig.add_trace(fig2.data[0])
+fig.add_trace(fig2.data[1])
+
+# fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
+#                     mode='markers',
+#                     name='Sell point',
+#                     color='Target' 
+#                     ))
+
+# fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+#                     mode='markers',
+#                     name='Buy point',
+#                     marker=dict(color='Target')
+#                     ))
+
+fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
+
+plot(fig)
 
 ## ------------------------- Facebook Prophet ------------------------- ##
     
@@ -967,7 +1086,7 @@ from fbprophet import Prophet
 model = Prophet()
 
 end = datetime.datetime.now()
-start = datetime.datetime(end.year - 5, end.month, end.day)
+start = datetime.datetime(end.year - 5, end.month, end.day) # Annual avg return is usually based on 5 year historical market performance
 
 df = web.DataReader('^VIX', 'yahoo', start, end)
 df = df.reset_index()
