@@ -27,9 +27,9 @@ timestamp = date.today().strftime('%d-%m-%Y')
 
 ## Using Long table as it's more flexible for this dataset
 ## Improve: use database instead of csv
-leaderboard = pd.read_csv('leaderboard.csv', parse_dates=[4], dayfirst=True) # Date format changes for some observations when reading csv unsure why
-risers = pd.read_csv('risers.csv')
-fallers = pd.read_csv('fallers.csv')
+leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
+risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
 
 columns = ['Stock', 'Position', 'Start', 'End', 'Date', 'User_change', 'Percentage_change', 'Last_updated']
 
@@ -87,6 +87,8 @@ for stock in elements:
 data = pd.DataFrame(daily_hotlist, columns=['Stock', 'Position', 'User_count', 'Date', 'Last_updated'])
 data['User_count'] = data['User_count'].str.replace(',', '').astype(float)
 
+data[['Date','Last_updated']] = data[['Date','Last_updated']].apply(pd.to_datetime)
+
 df = pd.concat([data, leaderboard], ignore_index=True)
 
 ## This script will run several times a day to get as much data as possible. 
@@ -97,7 +99,7 @@ df = pd.concat([data, leaderboard], ignore_index=True)
 #https://stackoverflow.com/questions/12497402/python-pandas-remove-duplicates-by-columns-a-keeping-the-row-with-the-highest
 complete_df = df.sort_values('User_count', ascending=False).drop_duplicates(['Stock','Date'], keep='first').reset_index(drop=True) #.sort_index()
 
-## Fix positions column
+## Fixing positions column
 
 #complete_df['Last_updated'] = pd.to_datetime(complete_df.Last_updated)
 complete_df['Date'] = pd.to_datetime(complete_df.Date)
@@ -150,6 +152,7 @@ def user_data(xpath, file, historical_df):
     data['User_change'] = data['User_change'].str.replace(',', '').astype(float)
     data['Start'] = data['Start'].str.replace(',', '').astype(float)
     data['End'] = data['End'].str.replace(',', '').astype(float)
+    data[['Date','Last_updated']] = data[['Date','Last_updated']].apply(pd.to_datetime)
     
     data = data[columns]
     
@@ -161,8 +164,10 @@ def user_data(xpath, file, historical_df):
     
     complete_df['User_change'] = complete_df['User_change'].abs()
     
-    complete_df['Date'] = pd.to_datetime(complete_df.Date)
+    #complete_df['Date'] = pd.to_datetime(complete_df.Date)
     
+    complete_df[['Date','Last_updated']] = complete_df[['Date','Last_updated']].apply(pd.to_datetime)
+
     complete_df = complete_df.sort_values(['Date', 'User_change'], ascending=[True, False])
 
     comp = pd.DataFrame()
