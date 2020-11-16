@@ -1079,9 +1079,7 @@ fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
 
 plot(fig)
 
-a = buys['Target'].value_counts()
-b = sells['Target'].value_counts()
-count = a.add(b,fill_value=0)
+count = buys['Target'].value_counts().add(sells['Target'].value_counts(),fill_value=0)
 
 ## ------------------------- Facebook Prophet ------------------------- ##
     
