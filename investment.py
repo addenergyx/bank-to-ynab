@@ -65,37 +65,7 @@ column_headers = ['Order ID', 'Ticker Symbol', 'Type',
 
 mailbox_list = mailbox[0].split()
 
-## Scraping Trading212 site ##
-
-## Stocks
-## Need this to put the right trailing value for yahoo finance (i.e .L/.MI)
-url = "https://www.trading212.com/en/Trade-Equities"
-
-headers = {
-    'User-Agent': 'My User Agent 1.0',
-}
-
-r = requests.get(url, headers=headers)
-
-#print(r.content) 
-
-soup = BeautifulSoup(r.content, 'html5lib')
-
-table = soup.find('div', attrs = {'id':'all-equities'})
-
-instruments = []
-for row in table.findAll('div', id=lambda x: x and x.startswith('equity-row-')):
-    instrument = {}
-    instrument['INSTRUMENT'] = row.find('div', attrs = {'data-label':'Instrument'}).text
-    instrument['COMPANY'] = row.find('div', attrs = {'data-label':'Company'}).text
-    # instrument['CURRENCY CODE'] = row.find('div', attrs = {'data-label':'Currency code'}).text
-    instrument['ISIN'] = row.find('div', attrs = {'data-label':'ISIN'}).text
-    # instrument['MIN TRADED QUANTITY'] = row.find('div', attrs = {'data-label':'Min traded quantity'}).text
-    instrument['MARKET NAME'] = row.find('div', attrs = {'data-label':'Market name'}).text
-    # instrument['MARKET HOURS (GMT)'] = row.find('div', attrs = {'data-label':'Market hours (GMT)'}).text
-    instruments.append(instrument)
- 
-all_212_equities = pd.DataFrame(instruments)
+all_212_equities = pd.read_csv('stock_list.csv')
 
 for item in mailbox_list:
     
@@ -786,7 +756,7 @@ send_email(holdings_dict)
 import plotly.express as px
 from plotly.offline import plot
 import plotly.graph_objects as go
-from datetime import timedelta
+# from datetime import timedelta
 
 monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
 monthly_returns_df.reset_index(level=0, inplace=True)
@@ -803,7 +773,8 @@ fig.update_layout(barmode='overlay', title='Monthly Returns and targets')
 plot(fig)
 
 # Cumsum
-fig = px.bar(monthly_returns_df, x='Date', y='Returns', color='Date', title='Running Total Realised Returns')
+monthly_returns_df['Rolling Returns'] = monthly_returns_df['Returns'].cumsum()
+fig = px.bar(monthly_returns_df, x='Date', y='Rolling Returns', title='Rolling Realised Returns')
 plot(fig)
 
 # Daily Returns
@@ -819,7 +790,7 @@ weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change
 weekly_returns_df.reset_index(level=0, inplace=True)
 weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] # Week ending
 
-weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelta(days=-2) # Last working day of week
+weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + datetime.timedelta(days=-2) # Last working day of week
 
 # Weekly Returns
 fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date', title='Weekly Returns')
@@ -979,6 +950,8 @@ aaa = portfolio['Ticker Symbol'].value_counts().head()
 
 for stock in aaa.index:
     chart(stock)
+
+chart('TTCF')
 
 ## ------------------------- Buy/Sell Performance ------------------------- ##
 
