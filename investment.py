@@ -11,7 +11,6 @@ import email
 from bs4 import BeautifulSoup
 import requests 
 import pandas as pd
-import datetime
 from dotenv import load_dotenv
 import stockstats
 import collections
@@ -21,6 +20,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from prettytable import PrettyTable
 import re
+import yfinance as yf
+from datetime import datetime, timedelta 
 
 load_dotenv(verbose=True, override=True)
 
@@ -173,7 +174,7 @@ for item in mailbox_list:
 
 summary_df = pd.DataFrame(data, columns=summary)
 
-now = datetime.datetime.now()
+now = datetime.now()
 
 summary_df.loc[len(summary_df)] = [f'{now.year}-{now.month}' , '-', summary_df.loc[len(summary_df)-1]['Closing balance'], '-']
  
@@ -263,7 +264,7 @@ holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
 returns_dict = {}
 
 for symbol in all_holdings['Ticker Symbol'].tolist():
-    
+        
     df = portfolio[portfolio['Ticker Symbol'] == symbol]
     
     df = df.reset_index().drop('index', axis=1)
@@ -284,7 +285,10 @@ for symbol in all_holdings['Ticker Symbol'].tolist():
         
         #fees_lis = df['Charges and fees'][:ii+1].tolist()
     
-        c = x = holdings = average = 0
+        c = 0
+        x = 0
+        holdings = 0
+        average = 0
                 
         for s, p, t, d in list(zip(share_lis, price_lis, type_lis, day_lis)):
             
@@ -374,13 +378,17 @@ weekly_returns_df = g.sum()
 def generate_holdings(all_holdings):
     
     for symbol in all_holdings:
-        
+                
         df = portfolio[portfolio['Ticker Symbol'] == symbol]
         
         df = df.reset_index().drop('index', axis=1)
+        
+        # formatting float to resolve floating point Arithmetic Issue
+        # https://www.codegrepper.com/code-examples/delphi/floating+point+precision+in+python+format
+        # https://docs.python.org/3/tutorial/floatingpoint.html
+        df['Shares'] = df['Shares'].apply(lambda x: float("{:.6f}".format(x))) 
     
         ## Watchlist
-        
         if df.empty:
             holdings_dict[symbol]['Current Holdings'] = 0
             holdings_dict[symbol]['Current Average'] = 0.0
@@ -476,8 +484,8 @@ and the current gain loss:
 #     symbol = f'{symbol}.L'
 # elif looky['Market name '].head(1).to_string(index=False).strip() is 'London Stock Exchange':   
     
-start = datetime.datetime(2020, 2, 8) # 3 Months before I started trading 
-end = datetime.datetime.now()    
+start = datetime(2020, 2, 7) # 3 Months before I started trading 
+end = datetime.now()    
 
 def formatting(num):
     return round(num, 2)
@@ -504,6 +512,35 @@ def get_yf_symbol(market, symbol):
         yf_symbol = symbol
     return yf_symbol
 
+def get_market(isin, symbol, old_symbol=''):
+    
+    ## When tickers change (due to mergers or company moving market) 212 removes the old ticker from the equities table
+    ## As 212 doesn't provide the company name in the daily statement there is no way for me to link old tickers with the new one
+    ## so will manually replace tickers here
+    ## Preventing this in the future by saving all old tickers in a csv
+    
+    if symbol == 'AO.':
+        old_symbol = symbol
+        symbol = symbol.rstrip('.')
+    elif symbol == 'DTG':
+        old_symbol = symbol
+        symbol = 'JET2'
+    elif symbol == 'FMCI':
+        old_symbol = symbol
+        symbol = 'TTCF'
+    elif symbol == 'SHLL':
+        old_symbol = symbol
+        symbol = 'HYLN'
+    
+    markets = all_212_equities.query('ISIN==@isin and INSTRUMENT==@symbol')['MARKET NAME']
+    
+    if len(markets) == 0:
+        market = all_212_equities[all_212_equities['INSTRUMENT'] == symbol]['MARKET NAME'].item() 
+    else:
+        market = markets.values[0]
+        #if len(market) == 0: print(len(market)) 
+    return old_symbol, market
+                
 
 def generate_rsi(all_holdings):
     
@@ -519,33 +556,9 @@ def generate_rsi(all_holdings):
             
             # print(symbol)
             # print(isin)
-            
-            ## When tickers change (due to mergers or company moving market) 212 removes the old ticker from the equities table
-            ## As 212 doesn't provide the company name in the daily statement there is no way for me to link old tickers with the new one
-            ## so will manually replace tickers here
-            
-            if symbol == 'AO.':
-                old_symbol = symbol
-                symbol = symbol.rstrip('.')
-            elif symbol == 'DTG':
-                old_symbol = symbol
-                symbol = 'JET2'
-            elif symbol == 'FMCI':
-                old_symbol = symbol
-                symbol = 'TTCF'
-            elif symbol == 'SHLL':
-                old_symbol = symbol
-                symbol = 'HYLN'
-            
-            markets = all_212_equities.query('ISIN==@isin and INSTRUMENT==@symbol')['MARKET NAME']
-            
-            if len(markets) == 0:
-                market = all_212_equities[all_212_equities['INSTRUMENT'] == symbol]['MARKET NAME'].item() 
-            else:
-                market = markets.values[0]
-
-            #if len(market) == 0: print(len(market)) 
                 
+            old_symbol, market = get_market(isin, symbol)
+
             yf_symbol = get_yf_symbol(market, symbol)    
                      
             index = web.DataReader(yf_symbol, 'yahoo', start, end)
@@ -756,7 +769,6 @@ send_email(holdings_dict)
 import plotly.express as px
 from plotly.offline import plot
 import plotly.graph_objects as go
-# from datetime import timedelta
 
 monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
 monthly_returns_df.reset_index(level=0, inplace=True)
@@ -790,7 +802,7 @@ weekly_returns_df.index=weekly_returns_df.index.to_series().astype(str) # Change
 weekly_returns_df.reset_index(level=0, inplace=True)
 weekly_returns_df['Date'] = weekly_returns_df['Date'].str.split('/', 1).str[1] # Week ending
 
-weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + datetime.timedelta(days=-2) # Last working day of week
+weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelta(days=-2) # Last working day of week
 
 # Weekly Returns
 fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date', title='Weekly Returns')
@@ -803,89 +815,6 @@ counts_df.columns = ['Type', 'Count']
 fig = px.pie(counts_df, values='Count', names='Type')
 plot(fig)
 
-## ------------------------- Tesla Portfolio Performance ------------------------- ##
-
-index = web.DataReader('TSLA', 'yahoo', start, end)
-index = index.reset_index()
-fig = px.line(index, x="Date", y="Adj Close")
-plot(fig)
-
-tsla = portfolio[portfolio['Ticker Symbol'] == 'TSLA']
-
-tsla['dolla'] = tsla['Price'] / tsla['Exchange rate']
-tsla['Trading day'] = pd.to_datetime(tsla['Trading day']) # Match index data format
-
-mask = (tsla['Trading day'] > datetime.datetime(2020, 2, 10)) & (tsla['Trading day'] <= datetime.datetime.now())
-
-tsla = tsla.loc[mask]
-
-fig = px.scatter(tsla, x='Trading day', y='Price', color='Type', title='Daily Returns')
-plot(fig)
-
-buys = tsla[tsla['Type']=='Buy']
-sells = tsla[tsla['Type']=='Sell']
-
-def transform_row(r):
-    if r['Trading day'] <= datetime.datetime(2020, 8, 30): # Tesla 5 for 1 Stock split
-        r.dolla = r.dolla/5
-    return r
-
-buys = buys.apply(transform_row, axis=1)
-sells = sells.apply(transform_row, axis=1)
-
-## Graph
-
-fig = go.Figure()
-
-## TODO: Allow user to switch between line and candlestick chart
-
-# Add traces
-fig.add_trace(go.Scatter(x=index['Date'], y=index['Adj Close'], 
-                    mode='lines'))
-
-# Buys
-fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
-                    mode='markers',
-                    name='Buy point'
-                    ))
-# Sells
-fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
-                    mode='markers',
-                    name='Sell point'
-                    ))
-
-fig.update_layout(title='Tesla Trading Activity')
-plot(fig)
-
-## Simple Candlestick
-fig = go.Figure(data=[go.Candlestick(x=index['Date'],
-                open=index['Open'],
-                high=index['High'],
-                low=index['Low'],
-                close=index['Adj Close'],
-                name='Stock')])
-
-fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
-                    mode='markers',
-                    name='Sell point',
-                    #marker=dict(color='#ff7f0e')
-                    marker=dict(size=7,
-                                line=dict(width=2,
-                                          color='DarkSlateGrey')),
-                    ))
-
-fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
-                    mode='markers',
-                    name='Buy point',
-                    marker=dict(size=7,
-                                line=dict(width=2,
-                                          color='DarkSlateGrey')),
-                    ))
-
-fig.update_layout(hovermode="x unified", title='Tesla Stock Graph') # Currently plotly doesn't support hover for overlapping points in same trace
-
-plot(fig)
-
 ## Stock activity - How many times I've bought/sold a stock         
 stocks = portfolio['Ticker Symbol'].value_counts()         
 stocks = stocks.reset_index()
@@ -893,25 +822,67 @@ stocks.columns = ['Ticker Symbol', 'Count']
 fig = px.pie(stocks, values='Count', names='Ticker Symbol', title='Portfolio Trading Activity')
 plot(fig)
 
-def chart(ticker):
-
-    market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
-            
-    yf_symbol = get_yf_symbol(market, ticker)   
-    
-    start = datetime.datetime(2020, 2, 8)
-    end = datetime.datetime.now()    
+## Adjust row for stock splits
+def stock_split_adjustment(r):
         
-    index = web.DataReader(yf_symbol, 'yahoo', start, end)
-    index = index.reset_index()
+    market = get_market(r['ISIN'], r['Ticker Symbol'])[1] 
     
+    ticker = get_yf_symbol(market, r['Ticker Symbol'])
+    
+    aapl = yf.Ticker(ticker)
+    split_df = aapl.splits.reset_index()
+    split = split_df[split_df['Date'] > r['Trading day']]['Stock Splits'].sum()
+    
+    if split > 0:
+        r.dolla = r.dolla/split
+    
+    return r
+
+def get_buy_sell(ticker):
+                    
     df = portfolio[portfolio['Ticker Symbol'] == ticker]
     
     df['dolla'] = df['Price'] / df['Exchange rate']
-    df['Trading day'] = pd.to_datetime(df['Trading day']) # Match index data format
+    df['Trading day'] = pd.to_datetime(df['Trading day']) # Match index date format
     
     buys = df[df['Type']=='Buy']
     sells = df[df['Type']=='Sell']
+    
+    buys = buys.apply(stock_split_adjustment, axis=1)
+    sells = sells.apply(stock_split_adjustment, axis=1)
+    
+    return buys, sells
+
+def chart(ticker):
+
+    market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
+    
+    buys, sells = get_buy_sell(ticker)
+    
+    start = datetime(2020, 2, 7)
+    end = datetime.now()    
+        
+    yf_symbol = get_yf_symbol(market, ticker)   
+    
+    index = web.DataReader(yf_symbol, 'yahoo', start, end)
+    index = index.reset_index()
+    
+    # ## TODO: Allow user to switch between line and candlestick chart
+
+    # # Add traces
+    # fig.add_trace(go.Scatter(x=index['Date'], y=index['Adj Close'], 
+    #                     mode='lines'))
+    
+    # # Buys
+    # fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+    #                     mode='markers',
+    #                     name='Buy point'
+    #                     ))
+    # # Sells
+    # fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
+    #                     mode='markers',
+    #                     name='Sell point'
+    #                     ))
     
     ## Candlestick Graph
         
@@ -922,6 +893,7 @@ def chart(ticker):
                     close=index['Adj Close'],
                     name='Stock')])
     
+    # Buys
     fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
                         mode='markers',
                         name='Sell point',
@@ -930,7 +902,8 @@ def chart(ticker):
                                     line=dict(width=2,
                                               color='DarkSlateGrey')),
                         ))
-
+    
+    # Sells
     fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
                         mode='markers',
                         name='Buy point',
@@ -940,118 +913,138 @@ def chart(ticker):
                                               color='DarkSlateGrey')),
                         ))
     
-    fig.update_layout(hovermode="x unified", title=f'{ticker} Buy/Sell points')
+    fig.update_layout(hovermode="x unified", title=f'{ticker} Buy/Sell points') # Currently plotly doesn't support hover for overlapping points in same trace
     
     plot(fig)
 
-## Top 5 Portfolio Performance 
-
+## My Top 5 most traded stocks
 aaa = portfolio['Ticker Symbol'].value_counts().head()
 
 for stock in aaa.index:
     chart(stock)
 
-chart('TTCF')
-
 ## ------------------------- Buy/Sell Performance ------------------------- ##
 
-index['Midpoint'] = (index['High'] + index['Low']) / 2
+def performance_chart(ticker):
 
-buy_target = []
-sell_target = []
-
-for i, row in buys.iterrows():
-    mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+    market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
     
-    if row['dolla'] < mid:
-        buy_target.append(1)
-    else:
-        buy_target.append(0)
-
-for i, row in sells.iterrows():
-    mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+    buys, sells = get_buy_sell(ticker) 
     
-    if row['dolla'] > mid:
-        sell_target.append(1)
-    else:
-        sell_target.append(0)
+    start = datetime(2020, 2, 7)
+    end = datetime.now()    
+    
+    yf_symbol = get_yf_symbol(market, ticker)   
+    
+    index = web.DataReader(yf_symbol, 'yahoo', start, end)
+    index = index.reset_index()
+    
+    index['Midpoint'] = (index['High'] + index['Low']) / 2
+    
+    buy_target = []
+    sell_target = []
+    
+    for i, row in buys.iterrows():
+        mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+        
+        if row['dolla'] < mid:
+            buy_target.append(1)
+        else:
+            buy_target.append(0)
+    
+    for i, row in sells.iterrows():
+        mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+        
+        if row['dolla'] > mid:
+            sell_target.append(1)
+        else:
+            sell_target.append(0)
+    
+    buys['Target'] = buy_target
+    sells['Target'] = sell_target
+    
+    # buy['Target'] = 
+    #buys.loc[buys['dolla'] < index[index['Date'] == buys['Trading day']]['Midpoint'].values[0], 'test'] = 1
+    
+    ## Continous colour graph https://plotly.com/python/discrete-color/
+    
+    fig = go.Figure(data=[go.Candlestick(x=index['Date'],
+                    open=index['Open'],
+                    high=index['High'],
+                    low=index['Low'],
+                    close=index['Adj Close'],
+                    name='Stock')])
+    
+    fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
+    fig1.update_traces(marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
+    fig.add_trace(fig1.data[0])
+    
+    fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
+    fig2.update_traces( marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
+    fig.add_trace(fig2.data[0])
+    
+    fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
+    
+    #fig.update_layout(coloraxis_showscale=False)
+    
+    plot(fig)
+    
+    ## Discrete color graph
+    
+    fig = go.Figure(data=[go.Candlestick(x=index['Date'],
+                    open=index['Open'],
+                    high=index['High'],
+                    low=index['Low'],
+                    close=index['Adj Close'],
+                    name='Stock')])
+    
+    # Must be a string for plotly to see it as a discrete value
+    sells['Target'] = sells['Target'].astype(str)
+    buys['Target'] = buys['Target'].astype(str)
+    
+    fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
+    fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig1.data[0].name = 'Successful Sell Point'
+    fig1.data[1].name = 'Unsuccessful Sell Point'
+    fig.add_trace(fig1.data[0])
+    fig.add_trace(fig1.data[1])
+    
+    fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
+    #fig2.update_traces(marker=dict(color='blue'))
+    #fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
+    fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig2.data[0].name = 'Successful Buy Point'
+    fig2.data[1].name = 'Unsuccessful Buy Point'
+    fig.add_trace(fig2.data[0])
+    fig.add_trace(fig2.data[1])
+    
+    # fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
+    #                     mode='markers',
+    #                     name='Sell point',
+    #                     color='Target' 
+    #                     ))
+    
+    # fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
+    #                     mode='markers',
+    #                     name='Buy point',
+    #                     marker=dict(color='Target')
+    #                     ))
+    
+    fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
+    
+    plot(fig)
 
-buys['Target'] = buy_target
-sells['Target'] = sell_target
+for stock in aaa.index:
+    performance_chart(stock)
 
-# buy['Target'] = 
-#buys.loc[buys['dolla'] < index[index['Date'] == buys['Trading day']]['Midpoint'].values[0], 'test'] = 1
+## ------------------------- Tesla Portfolio Performance ------------------------- ##
 
-## Continous colour graph https://plotly.com/python/discrete-color/
+## Focusing on tesla as they are my most traded stock
 
-fig = go.Figure(data=[go.Candlestick(x=index['Date'],
-                open=index['Open'],
-                high=index['High'],
-                low=index['Low'],
-                close=index['Adj Close'],
-                name='Stock')])
-
-fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
-fig1.update_traces(marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
-fig.add_trace(fig1.data[0])
-
-fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
-fig2.update_traces( marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
-fig.add_trace(fig2.data[0])
-
-fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
-
-#fig.update_layout(coloraxis_showscale=False)
-
-plot(fig)
-
-## Discrete color graph
-
-fig = go.Figure(data=[go.Candlestick(x=index['Date'],
-                open=index['Open'],
-                high=index['High'],
-                low=index['Low'],
-                close=index['Adj Close'],
-                name='Stock')])
-
-# Must be a string for plotly to see it as a discrete value
-sells['Target'] = sells['Target'].astype(str)
-buys['Target'] = buys['Target'].astype(str)
-
-fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
-fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-fig1.data[0].name = 'Successful Sell Point'
-fig1.data[1].name = 'Unsuccessful Sell Point'
-fig.add_trace(fig1.data[0])
-fig.add_trace(fig1.data[1])
-
-fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
-#fig2.update_traces(marker=dict(color='blue'))
-#fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
-fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-fig2.data[0].name = 'Successful Buy Point'
-fig2.data[1].name = 'Unsuccessful Buy Point'
-fig.add_trace(fig2.data[0])
-fig.add_trace(fig2.data[1])
-
-# fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
-#                     mode='markers',
-#                     name='Sell point',
-#                     color='Target' 
-#                     ))
-
-# fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
-#                     mode='markers',
-#                     name='Buy point',
-#                     marker=dict(color='Target')
-#                     ))
-
-fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
-
-plot(fig)
-
+chart('TSLA')
+buys, sells = get_buy_sell('TSLA') 
 count = buys['Target'].value_counts().add(sells['Target'].value_counts(),fill_value=0)
 
 ## ------------------------- Facebook Prophet ------------------------- ##
@@ -1060,8 +1053,8 @@ from fbprophet import Prophet
 
 model = Prophet()
 
-end = datetime.datetime.now()
-start = datetime.datetime(end.year - 5, end.month, end.day) # Annual avg return is usually based on 5 year historical market performance
+end = datetime.now()
+start = datetime(end.year - 5, end.month, end.day) # Annual avg return is usually based on 5 year historical market performance
 
 df = web.DataReader('^VIX', 'yahoo', start, end)
 df = df.reset_index()
@@ -1121,6 +1114,64 @@ layout = dict(title='Stock Price Estimation Using FbProphet',
 figure=dict(data=data,layout=layout)
 
 plot(figure)
+
+
+## ------------------------- Trend Lines & yfinance ------------------------- ##
+
+# import trendln
+# import yfinance as yf
+# import datetime
+
+# start = datetime.datetime(2020, 2, 7) # 3 Months before I started trading 
+# end = datetime.datetime.now()  
+
+tsla = yf.Ticker('NIO')
+#hist = tsla.history(period="max", rounding=True)
+recommendations = tsla.recommendations
+calendar = tsla.calendar
+tsla.sustainability
+# show major holders
+tsla.major_holders
+# show institutional holders
+tsla.institutional_holders
+
+# tsla_df = yf.download('TSLA', start=start, end=end) # S&P500
+# tsla_df = pd.DataFrame(tsla_df)
+
+# qq = tsla.splits.reset_index()
+# zz = qq[qq['Date'] >= start]['Stock Splits'].sum()
+
+# import yfinance as yf
+# aapl = yf.Ticker('AAPL')
+# hist = aapl.history(period="max", rounding=True)
+# qq = aapl.splits.reset_index()
+# zz = qq[qq['Date'] >= start]['Stock Splits'].sum()
+
+# appl_df = yf.download('AAPL', start=start, end=end) # S&P500
+# appl_df = pd.DataFrame(appl_df)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
