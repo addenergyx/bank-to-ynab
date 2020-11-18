@@ -155,6 +155,10 @@ def job():
             except ApiException as e:
                 print("Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason)
                 send_email("YNAB: Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason ,e.status)
+                
+                if e.status == 429:
+                    # Too Many Requests
+                    exit()
 
 if WORKING_ENV == 'development':            
     schedule.every(10).seconds.do(job)
