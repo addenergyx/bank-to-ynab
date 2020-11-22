@@ -21,7 +21,10 @@ from email.mime.multipart import MIMEMultipart
 from prettytable import PrettyTable
 import re
 import yfinance as yf
-from datetime import datetime, timedelta 
+from datetime import datetime, timedelta
+import plotly.express as px
+from plotly.offline import plot
+import plotly.graph_objects as go
 
 load_dotenv(verbose=True, override=True)
 
@@ -40,6 +43,9 @@ load_dotenv(verbose=True, override=True)
 # UK vs US portfolio (compare returns in all markets)
 # Move equities table to a database and keep old tickers (update table instead of creating new one each time)
 # Fix watchlist
+
+## ------------------------- Scrape statements ------------------------- ##
+
 
 email_user = os.getenv('GMAIL')
 email_pass = os.getenv('GMAIL_PASS') # Make sure 'Less secure app access' is turned on
@@ -115,7 +121,7 @@ for item in mailbox_list:
     
 portfolio = pd.DataFrame(data, columns=column_headers)
 
-## Monthly summary
+## ------------------------- Monthly summary ------------------------- ##
 
 mail.select('dividends')
 
@@ -766,10 +772,6 @@ send_email(holdings_dict)
 
 ## ------------------------- Graphs ------------------------- ##
 
-import plotly.express as px
-from plotly.offline import plot
-import plotly.graph_objects as go
-
 monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
 monthly_returns_df.reset_index(level=0, inplace=True)
 
@@ -792,6 +794,7 @@ plot(fig)
 # Daily Returns
 fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date', title='Daily Returns')
 plot(fig)
+
 ## TODO: On click show all trades that day: daily_returns_df[daily_returns_df['Date'] == day_clicked]
 
 # Dividends
@@ -918,9 +921,9 @@ def chart(ticker):
     plot(fig)
 
 ## My Top 5 most traded stocks
-aaa = portfolio['Ticker Symbol'].value_counts().head()
+top_stocks = portfolio['Ticker Symbol'].value_counts().head()
 
-for stock in aaa.index:
+for stock in top_stocks.index:
     chart(stock)
 
 ## ------------------------- Buy/Sell Performance ------------------------- ##
@@ -998,13 +1001,14 @@ def performance_chart(ticker):
                     close=index['Adj Close'],
                     name='Stock')])
     
-    # Must be a string for plotly to see it as a discrete value
+    # Must be a string for plotly to interpret numeric values as a discrete value
+    # https://plotly.com/python/discrete-color/
     sells['Target'] = sells['Target'].astype(str)
     buys['Target'] = buys['Target'].astype(str)
     
     fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
     fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
     fig1.data[0].name = 'Successful Sell Point'
     fig1.data[1].name = 'Unsuccessful Sell Point'
     fig.add_trace(fig1.data[0])
@@ -1014,7 +1018,7 @@ def performance_chart(ticker):
     #fig2.update_traces(marker=dict(color='blue'))
     #fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
     fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
     fig2.data[0].name = 'Successful Buy Point'
     fig2.data[1].name = 'Unsuccessful Buy Point'
     fig.add_trace(fig2.data[0])
@@ -1032,20 +1036,211 @@ def performance_chart(ticker):
     #                     marker=dict(color='Target')
     #                     ))
     
-    fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
+    fig.update_layout(hovermode="x unified", title=f'{ticker} Stock Graph')
     
     plot(fig)
 
-for stock in aaa.index:
+for stock in top_stocks.index:
     performance_chart(stock)
 
 ## ------------------------- Tesla Portfolio Performance ------------------------- ##
 
 ## Focusing on tesla as they are my most traded stock
 
-chart('TSLA')
+index = web.DataReader('TSLA', 'yahoo', start, end)
+index = index.reset_index()
+
+index['Midpoint'] = (index['High'] + index['Low']) / 2
+
+buy_target = []
+sell_target = []
+
 buys, sells = get_buy_sell('TSLA') 
+
+for i, row in buys.iterrows():
+    mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+    
+    if row['dolla'] < mid:
+        buy_target.append(1)
+    else:
+        buy_target.append(0)
+
+for i, row in sells.iterrows():
+    mid = index[index['Date'] == row['Trading day']]['Midpoint'].values[0]
+    
+    if row['dolla'] > mid:
+        sell_target.append(1)
+    else:
+        sell_target.append(0)
+
+buys['Target'] = buy_target
+sells['Target'] = sell_target
+
+chart('TSLA')
 count = buys['Target'].value_counts().add(sells['Target'].value_counts(),fill_value=0)
+
+percentage = count[1]/count.sum() *100
+percentage = '{:.2f}'.format(percentage)
+print(f'Successful trades {percentage}%')
+
+## ------------------------- How do Trading 212 Users Behave? ------------------------- ##
+
+leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+
+# Don't change original dataframe
+user_df = leaderboard.copy()
+
+# Have to change datatime to string to work in plotly animations
+user_df['Date'] = user_df['Date'].dt.strftime('%Y-%m-%d')
+
+fig = px.bar(user_df, x='Position', y='User_count', animation_frame='Date', hover_name="Stock")
+fig.update_layout(barmode='group')
+plot(fig)
+
+fig = px.scatter(user_df, x='Stock', y='User_count', animation_frame='Date', animation_group='Stock')
+plot(fig)
+
+## Percentage change in users versus the percentage change in price for all stocks in the leaderboard
+
+# Using forward fill method to fill the missing values in the dataframe 
+percentage_change = user_df.groupby(['Stock'])['User_count'].pct_change(fill_method ='ffill')
+user_df['User_percentage_change'] = percentage_change
+
+fig = px.scatter(user_df, x='Position', y='User_percentage_change', animation_frame='Date', 
+                 animation_group='Stock', hover_name="Stock")
+plot(fig)
+
+## No easy way to get ticker symbol from company name using datasets available
+## Company used in https://www.trading212.com/en/Trade-Equities is different to the company name used in leaderboard
+## Made a scraper to get the ticker from Trading 212 site
+
+# appl_df = yf.download('TSLA', start='2020-11-18', end='2020-11-19')['Adj Close'].values[0]
+
+# ticker = all_212_equities[all_212_equities['COMPANY'] == 'Tesla']['INSTRUMENT'].values[0]
+
+# all_212_equities[all_212_equities.COMPANY.str.contains('^Tesla')].values[0][0]
+
+
+def get_closing_price(r):
+    print(r['Stock'])
+    
+    #ticker = all_212_equities[all_212_equities.COMPANY.str.contains(f"^{r['Stock']}")].values[0][0]
+    
+    yf_ticker = get_yf_symbol(aa_dict[r['Stock']]['market'], aa_dict[r['Stock']]['ticker'])
+    print(yf_ticker)
+
+    try:
+        df = web.DataReader(yf_ticker, 'yahoo', r['Date'], r['Date'] )['Adj Close'].values[0]
+        df = float(df)
+    except:
+        df = ''
+    
+    #price = yf.download(yf_ticker, start=r['Date'], end=pd.to_datetime(r['Date']) + timedelta(days=1))['Adj Close'].values[0]
+    print(df)
+    r['Price'] = df
+    return r
+    
+user_df['Price'] = ''
+user_df = user_df.apply(get_closing_price, axis=1)
+
+user_df['Price'] = pd.to_numeric(user_df['Price'], errors='coerce')
+
+price_change = user_df.groupby(['Stock'])['Price'].pct_change(fill_method ='ffill')
+user_df['Price_percentage_change'] = price_change
+
+user_df['Date'] = user_df['Date'].dt.strftime('%Y-%m-%d')
+
+fig = px.scatter(user_df, x='User_percentage_change', y='Price_percentage_change', animation_frame='Date', 
+                 animation_group='Stock', hover_name="Stock")
+plot(fig)
+
+## ------------------------- Individual stock analysis ------------------------- ##
+
+change = user_df[user_df['Stock'] == 'Tesla']
+price = yf.download('TSLA', start=change['Date'].iloc[0], end=(pd.to_datetime(change['Date'].iloc[-1] ) + timedelta(days=1)))['Adj Close']
+change['Price'] = price.values
+
+from plotly.subplots import make_subplots
+
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+fig.add_trace(
+    go.Scatter(x=change['Date'], y=change['Price'], name="Stock Price"),
+    secondary_y=False,
+)
+
+fig.add_trace(
+    go.Scatter(x=change['Date'], y=change['User_percentage_change'], name="Percentage change in Users"),
+    secondary_y=True,
+)
+
+fig.update_layout(
+    title_text="Price vs # of Users"
+)
+
+fig.update_xaxes(title_text="Date")
+
+fig.update_yaxes(title_text="<b>primary</b> Stock Price", secondary_y=False)
+fig.update_yaxes(title_text="<b>secondary</b> # of Users", secondary_y=True)
+
+plot(fig)
+
+## User count graph 
+
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+fig.add_trace(
+    go.Scatter(x=change['Date'], y=change['Price'], name="Stock Price"),
+    secondary_y=False,
+)
+
+fig.add_trace(
+    go.Scatter(x=change['Date'], y=change['User_count'], name="# of Users"),
+    secondary_y=True,
+)
+
+fig.update_layout(
+    title_text="Price vs # of Users"
+)
+
+fig.update_xaxes(title_text="Date")
+
+fig.update_yaxes(title_text="<b>primary</b> Stock Price", secondary_y=False)
+fig.update_yaxes(title_text="<b>secondary</b> Percentage change in Users", secondary_y=True)
+
+plot(fig)
+
+# change = risers[risers['Stock'] == 'Rolls-Royce Holdings']
+# price = yf.download('RR.L', start=change['Date'].iloc[0], end=(pd.to_datetime(change['Date'].iloc[-1] ) + timedelta(days=1)))['Adj Close']
+# change['Price'] = price.values
+
+# fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+# fig.add_trace(
+#     go.Scatter(x=change['Date'], y=change['Price'], name="Stock Price"),
+#     secondary_y=False,
+# )
+
+# fig.add_trace(
+#     go.Scatter(x=change['Date'], y=change['Percentage_change'], name="Users"),
+#     secondary_y=True,
+# )
+
+# fig.update_layout(
+#     title_text="Price vs # of Users"
+# )
+
+# fig.update_xaxes(title_text="Date")
+
+# fig.update_yaxes(title_text="<b>primary</b> Stock Price", secondary_y=False)
+# fig.update_yaxes(title_text="<b>secondary</b> Percentage change in Users", secondary_y=True)
+
+# plot(fig)
+
+# change = leaderboard[leaderboard['Stock'] == 'Tesla']
+# change['User_count'].pct_change(fill_method ='ffill')
 
 ## ------------------------- Facebook Prophet ------------------------- ##
     
@@ -1125,7 +1320,7 @@ plot(figure)
 # start = datetime.datetime(2020, 2, 7) # 3 Months before I started trading 
 # end = datetime.datetime.now()  
 
-tsla = yf.Ticker('NIO')
+tsla = yf.Ticker('VUSA.L')
 #hist = tsla.history(period="max", rounding=True)
 recommendations = tsla.recommendations
 calendar = tsla.calendar
@@ -1135,7 +1330,17 @@ tsla.major_holders
 # show institutional holders
 tsla.institutional_holders
 
-# tsla_df = yf.download('TSLA', start=start, end=end) # S&P500
+tsla_df = yf.download('VUSA.L', period = "5d", interval = "1m") # S&P500
+# fig = go.Figure(data=[go.Candlestick(x=tsla_df.index,
+#                 open=tsla_df['Open'],
+#                 high=tsla_df['High'],
+#                 low=tsla_df['Low'],
+#                 close=tsla_df['Adj Close'],
+#                 name='Stock')])
+
+# fig.update_layout(hovermode="x unified", title='yfinance') # Currently plotly doesn't support hover for overlapping points in same trace
+# plot(fig)
+
 # tsla_df = pd.DataFrame(tsla_df)
 
 # qq = tsla.splits.reset_index()
