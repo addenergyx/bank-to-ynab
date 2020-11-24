@@ -40,31 +40,22 @@ driver.implicitly_wait(10)
 
 driver.get('https://www.trading212.com/en/login')
 
-## Login
 driver.find_element_by_id('username-real').send_keys(os.getenv('TRADE_USER'))
 driver.find_element_by_id('pass-real').send_keys(os.getenv('TRADE_PASS'))
 driver.find_element_by_xpath('/html/body/div[1]/section[2]/div/div[2]/div/form/input[6]').click()
 
-driver.find_element_by_id('uniqName_0_184').click()
+driver.find_element_by_xpath('/html/body/div[6]/div[3]/div[2]/div').click()
 
-elements = driver.find_elements_by_xpath('/html/body/div[5]/div[3]/div/div[2]/div[4]/div/table/tbody')
+elements = driver.find_elements_by_xpath('/html/body/div[5]/div[3]/div/div[2]/div[4]/div')
 
-table = elements[0].find_elements_by_tag_name('tr')
+table = pd.read_html(elements[0].get_attribute('innerHTML'))[0]
+live_portfolio = table.iloc[:,:-2]
 
 headers = driver.find_elements_by_tag_name('thead')
 
-tr = headers[0].find_elements_by_tag_name('th')[:9]
+columns = ['Ticker'] + [x.text for x in headers[0].find_elements_by_tag_name('th')[1:9]]
 
-columns = [x.text for x in tr]
-
-columns[0] = 'Ticker'
-
-live_portfolio = pd.DataFrame(columns=columns)
-
-for row in table:
-    td = row.find_elements_by_tag_name('td')[:9]
-    
-    live_portfolio.loc[len(live_portfolio)] = [x.text for x in td]
+live_portfolio.columns = columns
     
 driver.close()
 driver.quit()
