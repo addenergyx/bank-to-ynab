@@ -14,25 +14,13 @@ import schedule
 import smtplib, ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
 from data import get_tokens
-
 import ynab
 from ynab.rest import ApiException
-
-# db_URI = os.getenv('AWS_DATABASE_URL')
-# engine = create_engine(db_URI)
-# data = pd.read_sql_table("banking", con=engine, index_col='index')
-
-# PLAID_BANK_TOKENS = os.getenv('PLAID_BANK_TOKENS')
-# PLAID_BANK_TOKENS = r'C:\Users\david\OneDrive\Desktop\bank_tokens.txt'
-# with open(PLAID_BANK_TOKENS) as json_file:
-#     data = json.load(json_file)
-
-data = get_tokens()
-
 from plaid import Client as PlaidClient
 from plaid import errors as PlaidErrors
+
+data = get_tokens()
 
 PLAID_CLIENT_ID = os.getenv('PLAID_CLIENT_ID')
 PLAID_SECRET = os.getenv('PLAID_SECRET')
@@ -48,12 +36,15 @@ PLAID_ENV = os.getenv('PLAID_ENV', 'development')
 client = PlaidClient(client_id = PLAID_CLIENT_ID, secret=PLAID_SECRET,
                       public_key=PLAID_PUBLIC_KEY, environment=PLAID_ENV)
 
+today = date.today()
+first = today.replace(day=1)
+lastMonth = first - timedelta(days=14) # 200 requests per hour rate limit
+
 def get_some_transactions(access_token: str, start_date: str, end_date: str) -> List[dict]:
     try:
         transactions_response = client.Transactions.get(access_token, start_date, end_date, count=500) # Max number of transactions is 500 default is 100
     except PlaidErrors.PlaidError as e:
         
-        # check the code attribute of the error to determine the specific error
         if e.code == 'ITEM_LOGIN_REQUIRED':
              
             ## Plaid Institution name
@@ -69,7 +60,6 @@ def get_some_transactions(access_token: str, start_date: str, end_date: str) -> 
             
             # initialize Link in update mode to restore access to this user's data
             # Done using flask
-            
             # see https://plaid.com/docs/api/#updating-items-via-link
         else:
             print("Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason)
@@ -109,56 +99,55 @@ def send_email(msg: str, error_code):
         # TODO: Send email here
         server.sendmail(sender_email, receiver_email, message.as_string())
 
+def send_transactions(row):
+    
+    account_id = row['ynab_account_id']
+    
+    ## Plaid Institution name
+    # bb = client.Accounts.get(row['access_token'])['item']['institution_id']
+    # bank = client.Institutions.get_by_id(bb)['institution']['name']
+    
+    some_transactions = get_some_transactions(row['access_token'], lastMonth.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"))
+    transactions = cleanup_transactions(some_transactions['transactions'], account_id)
+
+    """
+    Note:
+    In Plaid API, Positive values when money moves out of the account; negative values when money moves in.
+    For example, purchases are positive; credit card payments, direct deposits, refunds are negative.
+    """
+    now = datetime.now().strftime("%d-%m-%Y %H:%M:%S") 
+    pprint(f"{now}: there have been {some_transactions['total_transactions']} total transations in the past 2 weeks from {row['bank']}")
+     
+    configuration = ynab.Configuration()
+
+    configuration.api_key['Authorization'] = os.getenv('YNAB_API_KEY')
+    configuration.api_key_prefix['Authorization'] = 'Bearer'
+
+    api_instance = ynab.TransactionsApi(ynab.ApiClient(configuration))
+    budget_id = os.getenv('YNAB_BUDGET_ID')
+    
+    # YNAB have depricated bulk transactions endpoint 
+    # as a result sending empty arrays returns an error 
+    if len(transactions) > 0 : 
+
+        bulk_transactions = ynab.BulkTransactions(transactions)
+
+        try:
+            # Bulk create transactions
+            api_response = api_instance.bulk_create_transactions(budget_id, bulk_transactions) #depricated
+            #pprint(api_response)
+        except ApiException as e:
+            print("Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason)
+            send_email("YNAB: Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason ,e.status)
+            
+            if e.status == 429:
+                # Too Many Requests
+                exit()
+    return row
+    
 def job():
-    today = date.today()
-    first = today.replace(day=1)
-    lastMonth = first - timedelta(days=14) # 200 requests per hour rate limit
-    for i, row in data.iterrows():        
-        account_id = row['ynab_account_id']
-        #print(p['access_token'])
-        #print(lastMonth.strftime("%Y-%m-%d"))
-        #print(today.strftime("%Y-%m-%d"))
-        
-        ## Plaid Institution name
-        # bb = client.Accounts.get(row['access_token'])['item']['institution_id']
-        # bank = client.Institutions.get_by_id(bb)['institution']['name']
-        
-        some_transactions = get_some_transactions(row['access_token'], lastMonth.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d"))
-        transactions = cleanup_transactions(some_transactions['transactions'], account_id)
-    
-        """
-        Note:
-        In Plaid API, Positive values when money moves out of the account; negative values when money moves in.
-        For example, purchases are positive; credit card payments, direct deposits, refunds are negative.
-        """
-        now = datetime.now().strftime("%d-%m-%Y %H:%M:%S") 
-        pprint(f"{now}: there have been {some_transactions['total_transactions']} total transations in the past 2 weeks from {row['bank']}")
-         
-        configuration = ynab.Configuration()
-    
-        configuration.api_key['Authorization'] = os.getenv('YNAB_API_KEY')
-        configuration.api_key_prefix['Authorization'] = 'Bearer'
-    
-        api_instance = ynab.TransactionsApi(ynab.ApiClient(configuration))
-        budget_id = os.getenv('YNAB_BUDGET_ID')
-        
-        # YNAB have depricated bulk transactions endpoint 
-        # as a result sending empty arrays returns an error 
-        if len(transactions) > 0 : 
-    
-            bulk_transactions = ynab.BulkTransactions(transactions)
-    
-            try:
-                # Bulk create transactions
-                api_response = api_instance.bulk_create_transactions(budget_id, bulk_transactions) #depricated
-                #pprint(api_response)
-            except ApiException as e:
-                print("Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason)
-                send_email("YNAB: Exception when calling TransactionsApi->bulk_create_transactions: %s\n" % e.reason ,e.status)
-                
-                if e.status == 429:
-                    # Too Many Requests
-                    exit()
+    data.apply(send_transactions, axis=1)
+    #for i, row in data.iterrows():        
 
 if WORKING_ENV == 'development':            
     schedule.every(10).seconds.do(job)
