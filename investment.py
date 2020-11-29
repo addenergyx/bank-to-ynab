@@ -9,7 +9,6 @@ import imaplib
 import os
 import email
 from bs4 import BeautifulSoup
-import requests 
 import pandas as pd
 from dotenv import load_dotenv
 import stockstats
@@ -25,6 +24,8 @@ from datetime import datetime, timedelta
 import plotly.express as px
 from plotly.offline import plot
 import plotly.graph_objects as go
+from pytrends.request import TrendReq
+from pytrends import dailydata
 
 load_dotenv(verbose=True, override=True)
 
@@ -45,7 +46,6 @@ load_dotenv(verbose=True, override=True)
 # Fix watchlist
 
 ## ------------------------- Scrape statements ------------------------- ##
-
 
 email_user = os.getenv('GMAIL')
 email_pass = os.getenv('GMAIL_PASS') # Make sure 'Less secure app access' is turned on
@@ -101,7 +101,7 @@ for item in mailbox_list:
         if "html" in content_type:
             html_ = part.get_payload()
             soup = BeautifulSoup(html_, 'html.parser')
-        
+            
             inv = soup.select('table[class*="report"]')
             table_list = []
             
@@ -392,7 +392,8 @@ def generate_holdings(all_holdings):
         # formatting float to resolve floating point Arithmetic Issue
         # https://www.codegrepper.com/code-examples/delphi/floating+point+precision+in+python+format
         # https://docs.python.org/3/tutorial/floatingpoint.html
-        df['Shares'] = df['Shares'].apply(lambda x: float("{:.6f}".format(x))) 
+        # could also use the math.isclose() function
+        df['Shares'] = df['Shares'].apply(lambda x: float("{:.6f}".format(x))) # Trading 212 only allows fraction of shares up to 6dp 
     
         ## Watchlist
         if df.empty:
@@ -986,7 +987,7 @@ def performance_chart(ticker):
     fig2.update_traces( marker=dict(size=7, line=dict(width=2, color='DarkSlateGrey')))
     fig.add_trace(fig2.data[0])
     
-    fig.update_layout(hovermode="x unified", title='Tesla Stock Graph')
+    fig.update_layout(hovermode="x unified", title=f'{ticker} Stock Graph')
     
     #fig.update_layout(coloraxis_showscale=False)
     
@@ -1007,8 +1008,8 @@ def performance_chart(ticker):
     buys['Target'] = buys['Target'].astype(str)
     
     fig1 = px.scatter(sells, x='Trading day', y='dolla', color='Target')
-    fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
     fig1.data[0].name = 'Successful Sell Point'
     fig1.data[1].name = 'Unsuccessful Sell Point'
     fig.add_trace(fig1.data[0])
@@ -1017,8 +1018,8 @@ def performance_chart(ticker):
     fig2 = px.scatter(buys, x='Trading day', y='dolla', color='Target')
     #fig2.update_traces(marker=dict(color='blue'))
     #fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
-    fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'white', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+    fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
     fig2.data[0].name = 'Successful Buy Point'
     fig2.data[1].name = 'Unsuccessful Buy Point'
     fig.add_trace(fig2.data[0])
@@ -1122,13 +1123,17 @@ plot(fig)
 
 # all_212_equities[all_212_equities.COMPANY.str.contains('^Tesla')].values[0][0]
 
+ticker_df = pd.read_csv('leaderboard_tickers.csv')
 
 def get_closing_price(r):
     print(r['Stock'])
     
     #ticker = all_212_equities[all_212_equities.COMPANY.str.contains(f"^{r['Stock']}")].values[0][0]
     
-    yf_ticker = get_yf_symbol(aa_dict[r['Stock']]['market'], aa_dict[r['Stock']]['ticker'])
+    temp_df = ticker_df[ticker_df['Company'] == r['Stock']]
+    
+    yf_ticker = get_yf_symbol(temp_df['market'].values[0], temp_df['ticker'].values[0])
+    
     print(yf_ticker)
 
     try:
@@ -1150,7 +1155,9 @@ user_df['Price'] = pd.to_numeric(user_df['Price'], errors='coerce')
 price_change = user_df.groupby(['Stock'])['Price'].pct_change(fill_method ='ffill')
 user_df['Price_percentage_change'] = price_change
 
-user_df['Date'] = user_df['Date'].dt.strftime('%Y-%m-%d')
+user_df['Date'] = pd.to_datetime(user_df['Date']).dt.strftime('%Y-%m-%d')
+
+## Outliers are very much news related. For example on 23/11 Astra Zeneca and Oxford announced 90% effectiveness of covid vaccine
 
 fig = px.scatter(user_df, x='User_percentage_change', y='Price_percentage_change', animation_frame='Date', 
                  animation_group='Stock', hover_name="Stock")
@@ -1158,11 +1165,13 @@ plot(fig)
 
 ## ------------------------- Individual stock analysis ------------------------- ##
 
+# Focusing on tesla as it's my most traded stock
+
+from plotly.subplots import make_subplots
+
 change = user_df[user_df['Stock'] == 'Tesla']
 price = yf.download('TSLA', start=change['Date'].iloc[0], end=(pd.to_datetime(change['Date'].iloc[-1] ) + timedelta(days=1)))['Adj Close']
 change['Price'] = price.values
-
-from plotly.subplots import make_subplots
 
 fig = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -1242,6 +1251,376 @@ plot(fig)
 # change = leaderboard[leaderboard['Stock'] == 'Tesla']
 # change['User_count'].pct_change(fill_method ='ffill')
 
+## ------------------------- Google Trends ------------------------- ##
+
+def build_dataset(keyword, ticker, years):
+    
+    pytrend = TrendReq()
+        
+    end = datetime.now()
+    start = datetime(end.year - years, end.month, end.day)
+    
+    ss = start.strftime('%Y-%m-%d')
+    ee = end.strftime('%Y-%m-%d')
+    
+    pytrend.build_payload(kw_list=[keyword], timeframe=f'{ss} {ee}')
+    df = pytrend.interest_over_time() # Weekly data
+    df.reset_index(level=0, inplace=True)
+    
+    df2 = dailydata.get_daily_data(keyword, start.year, start.month, end.year, end.month)
+    df2.reset_index(level=0, inplace=True)
+    df2 = df2.rename(columns={'date':'Date'})
+    
+    index = web.DataReader(ticker, 'yahoo', start, end)
+    index = index.reset_index()
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    fig.add_trace(
+        go.Scatter(x=index['Date'], y=index['Adj Close'], name="Stock Price"),
+        secondary_y=False,
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=df['date'], y=df[keyword], name="Google Trends"),
+        secondary_y=True,
+    )
+    
+    fig.update_layout(
+        title_text=f"Price vs Google trends of {ticker}"
+    )
+    
+    fig.update_xaxes(title_text="Date")
+    fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
+    fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
+    
+    plot(fig)
+    
+    merged_df = pd.merge(index, df2, on="Date")
+    
+    ## calculate correlation coefficient value
+    #print(merged_df['Adj Close'].corr(merged_df[f'{keyword}_unscaled']))
+    print(merged_df['Adj Close'].corr(merged_df['scale']))
+    print(index['Adj Close'].corr(df[keyword]))
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    fig.add_trace(
+        go.Scatter(x=merged_df['Date'], y=merged_df['Adj Close'], name="Stock Price"),
+        secondary_y=False,
+    )
+    
+    fig.add_trace(
+        go.Scatter(x=merged_df['Date'], y=merged_df[f'{keyword}_unscaled'], name="Google Trends"),
+        secondary_y=True,
+    )
+    
+    fig.update_layout(
+        title_text=f"Price vs Google trends of {ticker}"
+    )
+    
+    fig.update_xaxes(title_text="Date")
+    fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
+    fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
+    
+    plot(fig)
+    
+    fig = px.bar(df, x='date', y=f'{keyword}')
+    plot(fig)
+    
+    return merged_df
+
+pytrend = TrendReq()
+
+keyword = 'tesla Stock'
+
+end = datetime.now()
+start = datetime(end.year - 5, end.month, end.day)
+
+ss = start.strftime('%Y-%m-%d')
+ee = end.strftime('%Y-%m-%d')
+
+# 1 year follows price trend better than 5 year 
+# This  may be because the values are calculated on a scale from 0 to 100, 
+# where 100 is the timeframe with the most popularity as a fraction of total searches in the given period of time, 
+# a value of 50 indicates a time which is half as popular. 
+# A value of 0 indicates a location where there was not enough data for this term. 
+# Source →Google Trends.
+
+# For my hypothesis I feel 1 year is more accurate due to influx of new traders due to corona
+# Old school traders rely on fundementals/technicals whereas newer trader trade on sentiment and momentum
+
+pytrend.build_payload(kw_list=[keyword], timeframe=f'{ss} {ee}')
+df = pytrend.interest_over_time() # Weekly data
+df.reset_index(level=0, inplace=True)
+
+df2 = dailydata.get_daily_data(keyword, start.year, start.month, end.year, end.month)
+df2.reset_index(level=0, inplace=True)
+df2 = df2.rename(columns={'date':'Date'})
+
+index = web.DataReader('tsla', 'yahoo', start, end)
+index = index.reset_index()
+
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+fig.add_trace(
+    go.Scatter(x=index['Date'], y=index['Adj Close'], name="Stock Price"),
+    secondary_y=False,
+)
+
+fig.add_trace(
+    go.Scatter(x=df['date'], y=df[keyword], name="Google Trends"),
+    secondary_y=True,
+)
+
+fig.update_layout(
+    title_text="Price vs Google trends"
+)
+
+fig.update_xaxes(title_text="Date")
+fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
+fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
+
+plot(fig)
+
+merged_df = pd.merge(index, df2, on="Date")
+
+## calculate correlation coefficient value
+#print(merged_df['Adj Close'].corr(merged_df[f'{keyword}_unscaled']))
+print(merged_df['Adj Close'].corr(merged_df['scale']))
+print(index['Adj Close'].corr(df[keyword]))
+
+fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+fig.add_trace(
+    go.Scatter(x=merged_df['Date'], y=merged_df['Adj Close'], name="Stock Price"),
+    secondary_y=False,
+)
+
+fig.add_trace(
+    go.Scatter(x=merged_df['Date'], y=merged_df[f'{keyword}_unscaled'], name="Google Trends"),
+    secondary_y=True,
+)
+
+fig.update_layout(
+    title_text="Price vs Google trends"
+)
+
+fig.update_xaxes(title_text="Date")
+fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
+fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
+
+plot(fig)
+
+fig = px.bar(df, x='date', y='tesla Stock')
+plot(fig)
+
+## ------------------------- Machine Learning ------------------------- ##
+
+## Data Preprocessing
+
+# Unfortunately won't get enough user data so using google trends instead
+
+merged_df = build_dataset('apple stock', 'aapl', 5)
+
+print(merged_df.isnull().sum())
+merged_df.drop(['isPartial'], inplace=True, axis=1)
+print(merged_df.isnull().sum())
+
+# Use price percentage change instead of value
+# Why use logarithmic returns for price prediction
+# https://youtu.be/dKBKNOn3gCE
+
+model_df = merged_df[['Date', 'Open', 'Adj Close', 'Volume', merged_df.filter(regex='_unscaled$').columns[0]]]
+
+training_dataset = model_df[model_df['Date'] < datetime(2020, 11, 1)]
+test_data = model_df[model_df['Date'] >= datetime(2020, 11, 1)]
+
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+
+## Using normalisation as will be using sigmoid function as activation functionn of output layer
+sc = MinMaxScaler()
+training_data = sc.fit_transform(training_dataset.drop(['Date'], axis=1))
+training_data.shape[0]
+
+window = 30
+
+x_train = [training_data[i-window:i] for i in range(60, training_data.shape[0])]
+
+# Open stock price
+y_train = [training_data[i, 0] for i in range(60, training_data.shape[0])]
+
+x_train, y_train = np.array(x_train ),  np.array(y_train)
+
+x_train.shape, y_train.shape
+
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Dropout
+
+## Model architecture
+model = Sequential()
+
+## Chose 50 nodes for high dimensionality
+model.add(LSTM(50, return_sequences=True, input_shape=(x_train.shape[1], x_train.shape[2])))
+
+# Dropout Regularisation to pervent overfitting. 20% is a common choice
+model.add(Dropout(0.2))
+
+# Layers 2 - 3
+for x in range(2,4):
+    print(f'Initalise layer {x}')
+    model.add(LSTM(50, return_sequences=True))
+    model.add(Dropout(0.2))
+
+# Final layer
+model.add(LSTM(50))
+model.add(Dropout(0.2))
+
+# Output layer
+model.add(Dense(1))
+
+model.compile(loss="mean_squared_error", optimizer="adam") # Try RMWprop optimizer after
+
+model.summary()
+
+## 32 recommended batch size
+model.fit(
+    x_train, y_train, epochs=100, batch_size=32, verbose=1, validation_split=0.2 #, validation_data=(Xtest, ytest)
+) # Loss progressively got better (lower)
+
+## https://machinelearningmastery.com/how-to-use-the-timeseriesgenerator-for-time-series-forecasting-in-keras/
+
+## Predictions ##
+
+#stock_test_data = model_df[model_df.index >= len(training_data)]
+#dataset = model_df.drop(['Date'], axis=1)
+
+# Adding last window days of training set to test set for LSTM
+total_test_data = pd.concat((training_dataset.tail(window), test_data), ignore_index = True).drop(['Date'], axis=1)
+
+scaled_test_data = sc.transform(total_test_data)
+
+#stock_test_data = test_data.drop(['Date'], axis=1)
+
+x_test = [scaled_test_data[i-window:i] for i in range(window, scaled_test_data.shape[0])]
+y_test = [scaled_test_data[i, 0] for i in range(window, scaled_test_data.shape[0])]
+
+x_test, y_test = np.array(x_test),  np.array(y_test)
+
+x_test.shape, y_test.shape
+
+y_pred = model.predict(x_test)
+
+## How to use inverse_transform in MinMaxScaler for a column in a matrix
+## https://stackoverflow.com/questions/49330195/how-to-use-inverse-transform-in-minmaxscaler-for-a-column-in-a-matrix
+# invert predictions
+# Original scaler variable (sc) won't work as it expects a 2D array instead of the 1D y_pred array we are trying to parse.
+scale = MinMaxScaler()
+scale.min_, scale.scale_ = sc.min_[0], sc.scale_[0]
+y_pred = scale.inverse_transform(y_pred)
+y_test = test_data['Open']
+
+y_pred  = [x[0] for x in y_pred.tolist()]
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=test_data['Date'], y=y_pred, name='Predicted Stock Price'))
+fig.add_trace(go.Scatter(x=test_data['Date'], y=y_test, name='Actual Stock Price'))
+fig.update_layout(title="Predicted vs Actual Stock Price", xaxis_title="Date", yaxis_title="Opening Price")
+plot(fig)
+
+test_dates = pd.Series([training_dataset['Date'].iloc[-1]]).append(test_data['Date'], ignore_index=True)
+y_pred_graph =  [training_dataset['Open'].iloc[-1]] + y_pred
+y_test_graph = pd.Series([training_dataset['Open'].iloc[-1]]).append(y_test, ignore_index=True).tolist()
+
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=training_dataset['Date'], y=training_dataset['Open'], name='Past Stock Price'))
+fig.add_trace(go.Scatter(x=test_dates, y=y_pred_graph, name='Predicted Stock Price'))
+fig.add_trace(go.Scatter(x=test_dates, y=y_test_graph, name='Actual Stock Price'))
+fig.update_layout(title="Predicted vs Actual Stock Price", xaxis_title="Date", yaxis_title="Opening Price")
+plot(fig)
+
+y_pred_graph
+y_test_graph
+
+# Direction 1 is up 0 is down compared to previous price
+
+pred_direction = [1 if x > y_pred_graph[i-1] else 0 for i,x in enumerate(y_pred_graph)]
+test_direction = [1 if x > y_test_graph[i-1] else 0 for i,x in enumerate(y_test_graph)]
+
+total_matches = sum(1 for i,x in enumerate(pred_direction) if x == test_direction[i])
+
+match = (total_matches/len(pred_direction) ) *100
+print(f'Accuracy: {match}%')
+
+## Tesla probably bad choice as it is volatile atm, recently announced being added to S&P 500
+
+# model = Sequential()
+# model.add(LSTM(4, input_shape=(Xtrain.shape[1], Xtrain.shape[2])))
+# model.add(Dense(1))
+# model.compile(loss="mean_squared_error", optimizer="adam")
+# model.fit(
+#     Xtrain, ytrain, epochs=100, validation_data=(Xtest, ytest), batch_size=16, verbose=1
+# )
+
+# model.summary()
+
+# trainPredict = model.predict(Xtrain)
+# testPredict = model.predict(Xtest)
+
+# trainPredict2 = np.c_[trainPredict, np.zeros(trainPredict.shape)]
+# testPredict2 = np.c_[testPredict, np.zeros(testPredict.shape)]
+
+# invert predictions
+# trainPredict = scaler.inverse_transform(trainPredict2)
+# trainPredict = [x[0] for x in trainPredict]
+
+# testPredict = scaler.inverse_transform(testPredict)
+# testPredict = [x[0] for x in testPredict]
+
+## How to use inverse_transform in MinMaxScaler for a column in a matrix
+## https://stackoverflow.com/questions/49330195/how-to-use-inverse-transform-in-minmaxscaler-for-a-column-in-a-matrix
+# scale = MinMaxScaler()
+# scale.min_, scale.scale_ = scaler.min_[0], scaler.scale_[0]
+# scale.inverse_transform(trainPredict)
+# scale.inverse_transform(testPredict)
+
+from sklearn.metrics import mean_squared_error
+# calculate root mean squared error
+# trainScore = mean_squared_error([x[0][0] for x in Xtrain], trainPredict, squared=False)
+# print("Train Score: %.2f RMSE" % (trainScore))
+
+testScore = mean_squared_error(y_test, y_pred, squared=False)
+print("Test Score: %.2f RMSE" % (testScore))
+
+
+
+## Using normalisation as will be using sigmoid function as activation functionn of output layer
+
+# scaler = MinMaxScaler()
+# training_set_scaled = scaler.fit_transform(training_set)
+
+# window = 60
+
+# # x_train = np.array([training_set_scaled[i-window:i, 0] for i in range(window, len(training_set_scaled))])
+# # y_train = np.array([training_set_scaled[i, 0] for i in range(window, len(training_set_scaled))])
+
+# X_train = training_set_scaled.copy()
+
+# xtrain = []
+
+# for i in range(window, len(X_train)):
+#     xtrain.append(X_train[i - window : i, X_train.shape[1]])
+
+# x_train[0].shape
+# y_train[0]
+
+# x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], x_train.shape[2]))
+# print(x_train.shape)
+# ## Building model 
+
+
+
 ## ------------------------- Facebook Prophet ------------------------- ##
     
 from fbprophet import Prophet
@@ -1261,7 +1640,7 @@ df[['ds', 'y']] = df[['Date', 'Adj Close']]
 
 model.fit(df)
 
-future = model.make_future_dataframe(periods=30)
+future = model.make_future_dataframe(periods=31)
 forecast = model.predict(future)
 
 model.plot(forecast)
@@ -1313,6 +1692,56 @@ plot(figure)
 
 ## ------------------------- Trend Lines & yfinance ------------------------- ##
 
+## Modified code from here https://medium.com/code-for-cause/calculating-resistance-and-pivot-points-with-python-caffbad46715
+
+pivots =[]
+dates = []
+counter = 0
+lastPivot = 0
+Range = [0 for x in range(0,10)]
+daterange = [0 for x in range(0,10)]
+
+df = web.DataReader('tsla', 'yahoo', start, end)
+df['High'].plot(label='high')
+
+for i in df.index:
+    currentMax = max(Range, default=0)
+    value=round(df["High"][i], 2)
+    
+    Range=Range[1:9]
+    Range.append(value)
+    daterange=daterange[1:9]
+    daterange.append(i)
+    
+    if currentMax == max(Range , default=0):
+        counter+=1
+    else:
+        counter = 0
+    if counter ==  5:
+        lastPivot=currentMax
+        dateloc =Range.index(lastPivot)
+        lastDate = daterange[dateloc]
+        pivots.append(lastPivot)
+        dates.append(lastDate)
+
+#print(str(pivots))
+#print(str(dates))
+timeD = timedelta(days=60)
+
+import matplotlib.pyplot as plt
+
+## Only print last 5 resistance lines
+pivots = pivots[-5:]
+dates = dates[-5:]
+
+for index in range(len(pivots)):
+    print(str(pivots[index])+" :" +str(dates[index]))
+    
+    plt.plot_date([dates[index],dates[index]+timeD],
+        [pivots[index],pivots[index]] , linestyle='-' , linewidth=2, marker=',')
+
+plt.show()
+plt.clf()
 # import trendln
 # import yfinance as yf
 # import datetime
