@@ -16,6 +16,8 @@ import time
 from datetime import date, datetime
 from webdriver_manager.chrome import ChromeDriverManager
 import re
+import os
+from sqlalchemy import create_engine
 
 ## Trading 212 hot list
 ## On 2nd November Trading 212 added a popularity tracker to their site
@@ -24,6 +26,9 @@ import re
 ## Trading 212 uses javascript to load the data so have to use selenium instead of beautifulsoup
 
 timestamp = date.today().strftime('%d-%m-%Y')
+
+db_URI = os.getenv('AWS_DATABASE_URL')
+engine = create_engine(db_URI)
 
 ## Using Long table as it's more flexible for this dataset
 ## Improve: use database instead of csv
@@ -60,10 +65,10 @@ driver = get_driver()
 ## ------------------------- Leaderboard ------------------------- ##
 
 daily_hotlist = []
+    
+driver.implicitly_wait(20)        
 
-driver.get(f'https://www.trading212.com/en/hotlist')
-
-time.sleep(5) # Pause for page to load
+driver.get('https://www.trading212.com/en/hotlist')
 
 elements = driver.find_elements_by_class_name("pt-popularity-content-item")
 
@@ -82,6 +87,10 @@ for stock in elements:
             stock.find_element_by_class_name('pt-holders-count').text, 
             timestamp,
             last_update])
+
+# elements = driver.find_elements_by_class_name("pt-popularity-content-results")
+# elements[0].text
+# df = pd.read_html(elements[0].text)
 
 ## Direct correlation between position and user count so should remove position for model
 data = pd.DataFrame(daily_hotlist, columns=['Stock', 'Position', 'User_count', 'Date', 'Last_updated'])
@@ -115,6 +124,8 @@ for d in complete_df['Date'].unique():
 complete_df = comp.copy()
 complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
 complete_df.to_csv('leaderboard.csv', index=False)
+
+complete_df.to_sql('leaderboard', engine, if_exists='replace')
 
 ## Position in dataset
 # complete_df = complete_df.sort_values('User_count', ascending=False)
@@ -186,8 +197,10 @@ def user_data(xpath, file, historical_df):
     return complete_df
 
 risers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[2]", 'risers.csv', risers)
-
 fallers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[3]", 'fallers.csv', fallers)
+
+risers_df.to_sql('risers', engine, if_exists='replace')
+fallers_df.to_sql('fallers', engine, if_exists='replace')
 
 ## ------------------------- Selenium Shutdown ------------------------- ##
 

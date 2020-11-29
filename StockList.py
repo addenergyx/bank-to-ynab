@@ -7,10 +7,16 @@ Created on Mon Nov 16 17:07:13 2020
 import requests 
 from bs4 import BeautifulSoup
 import pandas as pd
+import os
+from sqlalchemy import create_engine
 
 ## Scraping Stocks in Trading212 site ##
 ## Need this to put the right trailing value for yahoo finance (i.e .L/.MI)
 
+db_URI = os.getenv('AWS_DATABASE_URL')
+engine = create_engine(db_URI)
+
+## Merging stored stock list with scraped stock list to account for stocks removed from Trading 212 or company name changes
 historical_df = pd.read_csv('stock_list.csv')
 
 url = "https://www.trading212.com/en/Trade-Equities"
@@ -22,7 +28,6 @@ headers = {
 r = requests.get(url, headers=headers)
 
 #print(r.content) 
-
 soup = BeautifulSoup(r.content, 'html5lib')
 
 table = soup.find('div', attrs = {'id':'all-equities'})
@@ -47,3 +52,4 @@ all_212_equities.drop_duplicates(['INSTRUMENT','COMPANY'], keep='first', inplace
 
 all_212_equities.to_csv('stock_list.csv', index=False)
 
+all_212_equities.to_sql('equities', engine, if_exists='replace')
