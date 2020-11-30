@@ -472,24 +472,7 @@ First Average Loss = Sum of Losses over the past 14 periods / 14
 The second, and subsequent, calculations are based on the prior averages
 and the current gain loss:
 
-"""
-#rsi_dict = {}
-
-# Trading 212 stock list [Invest] google sheet (separators ";", encoding = "utf_16")
-#stock_list_lookup = pd.read_csv('trading212-INVEST.csv' , encoding = "utf_16", sep=';')
-
-#AIR.PA ABF.L 
-# use lookup table 
-
-# symbol = 'ABF'
-
-# looky = stock_list_lookup.loc[stock_list_lookup['ticker'] == symbol]
-
-# market_name = a.head(1).to_string(index=False).strip()
-
-# if looky['Market name '].head(1).to_string(index=False).strip() is 'London Stock Exchange':
-#     symbol = f'{symbol}.L'
-# elif looky['Market name '].head(1).to_string(index=False).strip() is 'London Stock Exchange':   
+""" 
     
 start = datetime(2020, 2, 7) # 3 Months before I started trading 
 end = datetime.now()    
@@ -550,9 +533,7 @@ def get_market(isin, symbol, old_symbol=''):
                 
 
 def generate_rsi(all_holdings):
-    
-    # stoky = set(['KWS', 'RDSB', 'FEVR'])
-    
+        
     for row in all_holdings.iloc:
     
         symbol = row[0]
@@ -645,9 +626,7 @@ def generate_rsi(all_holdings):
             pass
 
 def generate_rsi_watchlist(all_holdings):
-    
-    #stoky = set(['KWS', 'RDSB', 'FEVR'])
-    
+        
     for symbol in watchlist:
     
         try:
@@ -723,8 +702,6 @@ def send_email(rsi_dict):
     message["From"] = "Daily RSI Alert - Digital Dashboard <{}>".format(sender_email)
     message["To"] = os.getenv('MY_EMAIL')
     
-    #text = 'You have completed {} Transactions'.format(num)
-
     x = PrettyTable(['Ticker','Current Holdings','Current Average', '1M', '1W', '1D','Today Open', '9_SMA', '180_SMA', 'RSI'])
     x.align = "c" 
     
@@ -967,9 +944,6 @@ def performance_chart(ticker):
     buys['Target'] = buy_target
     sells['Target'] = sell_target
     
-    # buy['Target'] = 
-    #buys.loc[buys['dolla'] < index[index['Date'] == buys['Trading day']]['Midpoint'].values[0], 'test'] = 1
-    
     ## Continous colour graph https://plotly.com/python/discrete-color/
     
     fig = go.Figure(data=[go.Candlestick(x=index['Date'],
@@ -1024,18 +998,6 @@ def performance_chart(ticker):
     fig2.data[1].name = 'Unsuccessful Buy Point'
     fig.add_trace(fig2.data[0])
     fig.add_trace(fig2.data[1])
-    
-    # fig.add_trace(go.Scatter(x=sells['Trading day'], y=sells['dolla'],
-    #                     mode='markers',
-    #                     name='Sell point',
-    #                     color='Target' 
-    #                     ))
-    
-    # fig.add_trace(go.Scatter(x=buys['Trading day'], y=buys['dolla'],
-    #                     mode='markers',
-    #                     name='Buy point',
-    #                     marker=dict(color='Target')
-    #                     ))
     
     fig.update_layout(hovermode="x unified", title=f'{ticker} Stock Graph')
     
@@ -1116,12 +1078,6 @@ plot(fig)
 ## No easy way to get ticker symbol from company name using datasets available
 ## Company used in https://www.trading212.com/en/Trade-Equities is different to the company name used in leaderboard
 ## Made a scraper to get the ticker from Trading 212 site
-
-# appl_df = yf.download('TSLA', start='2020-11-18', end='2020-11-19')['Adj Close'].values[0]
-
-# ticker = all_212_equities[all_212_equities['COMPANY'] == 'Tesla']['INSTRUMENT'].values[0]
-
-# all_212_equities[all_212_equities.COMPANY.str.contains('^Tesla')].values[0][0]
 
 ticker_df = pd.read_csv('leaderboard_tickers.csv')
 
@@ -1412,8 +1368,8 @@ fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
 
 plot(fig)
 
-fig = px.bar(df, x='date', y='tesla Stock')
-plot(fig)
+# fig = px.bar(df, x='date', y='tesla Stock')
+# plot(fig)
 
 ## ------------------------- Machine Learning ------------------------- ##
 
@@ -1555,36 +1511,6 @@ print(f'Accuracy: {match}%')
 
 ## Tesla probably bad choice as it is volatile atm, recently announced being added to S&P 500
 
-# model = Sequential()
-# model.add(LSTM(4, input_shape=(Xtrain.shape[1], Xtrain.shape[2])))
-# model.add(Dense(1))
-# model.compile(loss="mean_squared_error", optimizer="adam")
-# model.fit(
-#     Xtrain, ytrain, epochs=100, validation_data=(Xtest, ytest), batch_size=16, verbose=1
-# )
-
-# model.summary()
-
-# trainPredict = model.predict(Xtrain)
-# testPredict = model.predict(Xtest)
-
-# trainPredict2 = np.c_[trainPredict, np.zeros(trainPredict.shape)]
-# testPredict2 = np.c_[testPredict, np.zeros(testPredict.shape)]
-
-# invert predictions
-# trainPredict = scaler.inverse_transform(trainPredict2)
-# trainPredict = [x[0] for x in trainPredict]
-
-# testPredict = scaler.inverse_transform(testPredict)
-# testPredict = [x[0] for x in testPredict]
-
-## How to use inverse_transform in MinMaxScaler for a column in a matrix
-## https://stackoverflow.com/questions/49330195/how-to-use-inverse-transform-in-minmaxscaler-for-a-column-in-a-matrix
-# scale = MinMaxScaler()
-# scale.min_, scale.scale_ = scaler.min_[0], scaler.scale_[0]
-# scale.inverse_transform(trainPredict)
-# scale.inverse_transform(testPredict)
-
 from sklearn.metrics import mean_squared_error
 # calculate root mean squared error
 # trainScore = mean_squared_error([x[0][0] for x in Xtrain], trainPredict, squared=False)
@@ -1592,34 +1518,6 @@ from sklearn.metrics import mean_squared_error
 
 testScore = mean_squared_error(y_test, y_pred, squared=False)
 print("Test Score: %.2f RMSE" % (testScore))
-
-
-
-## Using normalisation as will be using sigmoid function as activation functionn of output layer
-
-# scaler = MinMaxScaler()
-# training_set_scaled = scaler.fit_transform(training_set)
-
-# window = 60
-
-# # x_train = np.array([training_set_scaled[i-window:i, 0] for i in range(window, len(training_set_scaled))])
-# # y_train = np.array([training_set_scaled[i, 0] for i in range(window, len(training_set_scaled))])
-
-# X_train = training_set_scaled.copy()
-
-# xtrain = []
-
-# for i in range(window, len(X_train)):
-#     xtrain.append(X_train[i - window : i, X_train.shape[1]])
-
-# x_train[0].shape
-# y_train[0]
-
-# x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], x_train.shape[2]))
-# print(x_train.shape)
-# ## Building model 
-
-
 
 ## ------------------------- Facebook Prophet ------------------------- ##
     
@@ -1690,7 +1588,7 @@ figure=dict(data=data,layout=layout)
 plot(figure)
 
 
-## ------------------------- Trend Lines & yfinance ------------------------- ##
+## ------------------------- S/R Lines & yfinance ------------------------- ##
 
 ## Modified code from here https://medium.com/code-for-cause/calculating-resistance-and-pivot-points-with-python-caffbad46715
 
@@ -1724,8 +1622,6 @@ for i in df.index:
         pivots.append(lastPivot)
         dates.append(lastDate)
 
-#print(str(pivots))
-#print(str(dates))
 timeD = timedelta(days=60)
 
 import matplotlib.pyplot as plt
