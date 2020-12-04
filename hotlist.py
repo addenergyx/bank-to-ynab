@@ -22,6 +22,13 @@ from dotenv import load_dotenv
 
 load_dotenv(verbose=True, override=True)
 
+WORKING_ENV = os.getenv('WORKING_ENV', 'development')
+
+if WORKING_ENV != 'development': 
+    import sys
+    sys.path.append(os.path.abspath("/home/pi/.local/lib/python3.7/site-packages/selenium/__init__.py"))
+    sys.path.append(os.path.abspath("/usr/local/lib/python3.7/dist-packages/fake_useragent/__init__.py"))
+
 ## Trading 212 hot list
 ## On 2nd November Trading 212 added a popularity tracker to their site
 ## Can You Predict Stock Price Movements With Users’ Behaviour data?
@@ -29,8 +36,6 @@ load_dotenv(verbose=True, override=True)
 ## Trading 212 uses javascript to load the data so have to use selenium instead of beautifulsoup
 
 timestamp = date.today().strftime('%d-%m-%Y')
-
-WORKING_ENV = os.getenv('WORKING_ENV', 'development')
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
@@ -73,7 +78,8 @@ def get_driver():
         
         # https://ivanderevianko.com/2020/01/selenium-chromedriver-for-raspberrypi
         # https://www.reddit.com/r/selenium/comments/7341wt/success_how_to_run_selenium_chrome_webdriver_on/
-        
+        # https://askubuntu.com/questions/1090142/cronjob-unable-to-find-module-pydub
+        # https://stackoverflow.com/questions/23908319/run-selenium-with-crontab-python
         return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options) 
 
 driver = get_driver()
@@ -226,5 +232,3 @@ fallers_df.to_sql('fallers', engine, if_exists='replace')
 
 driver.close()
 driver.quit()
-
-
