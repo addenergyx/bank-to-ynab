@@ -18,6 +18,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 import re
 import os
 from sqlalchemy import create_engine
+from dotenv import load_dotenv
+
+load_dotenv(verbose=True, override=True)
 
 ## Trading 212 hot list
 ## On 2nd November Trading 212 added a popularity tracker to their site
@@ -58,15 +61,20 @@ def get_driver():
     options = Options()
     ua = UserAgent()
     userAgent = ua.random
-    options.add_argument(f'user-agent={userAgent}')
-    
-    ## Headless browser - doesn't pop up
-    ## A headless browser is a web browser without a graphical user interface.
-    #options.add_argument("--headless")  
+    options.add_argument('user-agent={}'.format(userAgent))
+     
     if WORKING_ENV == 'development':
         return webdriver.Chrome(ChromeDriverManager().install(), options=options) # automatically use the correct chromedriver by using the webdrive-manager
     else:
-        return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options)
+        
+        ## Headless browser - doesn't pop up
+        ## A headless browser is a web browser without a graphical user interface.
+        #options.add_argument("--headless") 
+        
+        # https://ivanderevianko.com/2020/01/selenium-chromedriver-for-raspberrypi
+        # https://www.reddit.com/r/selenium/comments/7341wt/success_how_to_run_selenium_chrome_webdriver_on/
+        
+        return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options) 
 
 driver = get_driver()
 
