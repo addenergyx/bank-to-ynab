@@ -32,16 +32,21 @@ engine = create_engine(db_URI)
 
 ## Using Long table as it's more flexible for this dataset
 ## Improve: use database instead of csv
-leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
-risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
-fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+# leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
+# risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+# fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+
+# Bad practice to dynamically create variables
+leaderboard = pd.read_sql_table("leaderboard", con=engine, index_col='index', parse_dates=['Last_updated'])
+risers = pd.read_sql_table("risers", con=engine, index_col='index', parse_dates=['Last_updated'])
+fallers = pd.read_sql_table("fallers", con=engine, index_col='index', parse_dates=['Last_updated'])
+
+for df in [leaderboard, risers, fallers]:
+    df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
 
 columns = ['Stock', 'Position', 'Start', 'End', 'Date', 'User_change', 'Percentage_change', 'Last_updated']
 
-# ase = leaderboard[leaderboard['Date'] == '11-11-2020'].reset_index(drop=True)
-# ase['Position'] = list(ase.index+1)
-
-## For webapp
+## For webapp ##
 overall_leaderboard = leaderboard.drop_duplicates('Stock', keep='first').reset_index(drop=True)
 overall_leaderboard['Position'] = list(overall_leaderboard.index+1)
 
@@ -96,7 +101,9 @@ for stock in elements:
 data = pd.DataFrame(daily_hotlist, columns=['Stock', 'Position', 'User_count', 'Date', 'Last_updated'])
 data['User_count'] = data['User_count'].str.replace(',', '').astype(float)
 
-data[['Date','Last_updated']] = data[['Date','Last_updated']].apply(pd.to_datetime)
+# data[['Date','Last_updated']] = data[['Date','Last_updated']].apply(pd.to_datetime)
+data['Last_updated'] =  pd.to_datetime(data['Last_updated'], dayfirst=True)
+data['Date'] = pd.to_datetime(data['Date'], dayfirst=True)
 
 df = pd.concat([data, leaderboard], ignore_index=True)
 
@@ -163,7 +170,9 @@ def user_data(xpath, file, historical_df):
     data['User_change'] = data['User_change'].str.replace(',', '').astype(float)
     data['Start'] = data['Start'].str.replace(',', '').astype(float)
     data['End'] = data['End'].str.replace(',', '').astype(float)
-    data[['Date','Last_updated']] = data[['Date','Last_updated']].apply(pd.to_datetime)
+    #data[['Date','Last_updated']] = data[['Date','Last_updated']].apply(pd.to_datetime)
+    data['Last_updated'] =  pd.to_datetime(data['Last_updated'], dayfirst=True)
+    data['Date'] = pd.to_datetime(data['Date'], dayfirst=True)
     
     data = data[columns]
     
@@ -177,7 +186,7 @@ def user_data(xpath, file, historical_df):
     
     #complete_df['Date'] = pd.to_datetime(complete_df.Date)
     
-    complete_df[['Date','Last_updated']] = complete_df[['Date','Last_updated']].apply(pd.to_datetime)
+    #complete_df[['Date','Last_updated']] = complete_df[['Date','Last_updated']].apply(pd.to_datetime)
 
     complete_df = complete_df.sort_values(['Date', 'User_change'], ascending=[True, False])
 
