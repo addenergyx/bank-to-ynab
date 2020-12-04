@@ -27,6 +27,8 @@ from sqlalchemy import create_engine
 
 timestamp = date.today().strftime('%d-%m-%Y')
 
+WORKING_ENV = os.getenv('WORKING_ENV', 'development')
+
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
 
@@ -61,9 +63,10 @@ def get_driver():
     ## Headless browser - doesn't pop up
     ## A headless browser is a web browser without a graphical user interface.
     #options.add_argument("--headless")  
-    
-    return webdriver.Chrome(ChromeDriverManager().install(), options=options) # automatically use the correct chromedriver by using the webdrive-manager
-    #return webdriver.Chrome('./chromedriver', options=options)
+    if WORKING_ENV == 'development':
+        return webdriver.Chrome(ChromeDriverManager().install(), options=options) # automatically use the correct chromedriver by using the webdrive-manager
+    else:
+        return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options)
 
 driver = get_driver()
 
