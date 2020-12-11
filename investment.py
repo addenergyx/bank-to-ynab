@@ -26,8 +26,12 @@ from plotly.offline import plot
 import plotly.graph_objects as go
 from pytrends.request import TrendReq
 from pytrends import dailydata
+from sqlalchemy import create_engine
 
 load_dotenv(verbose=True, override=True)
+
+db_URI = os.getenv('AWS_DATABASE_URL')
+engine = create_engine(db_URI)
 
 # -------------------------------------------------
 #
@@ -119,72 +123,80 @@ for item in mailbox_list:
                     if row_list:
                         data.append(row_list[1:])
     
-portfolio = pd.DataFrame(data, columns=column_headers)
+trades = pd.DataFrame(data, columns=column_headers)
+trades
 
 ## ------------------------- Monthly summary ------------------------- ##
 
-mail.select('dividends')
+def get_summary():
 
-status, mailbox = mail.search(None, 'ALL')
-
-mailbox_list = mailbox[0].split()
-
-data = []
-
-for item in mailbox_list:
+    mail.select('dividends')
     
-# for num in data[0].split():
-    status, body = mail.fetch(item, '(RFC822)')
-    email_msg = body[0][1]
+    status, mailbox = mail.search(None, 'ALL')
+    
+    mailbox_list = mailbox[0].split()
+    
+    data = []
+    
+    for item in mailbox_list:
+        
+    # for num in data[0].split():
+        status, body = mail.fetch(item, '(RFC822)')
+        email_msg = body[0][1]
+    
+        raw_email = email_msg.decode('utf-8')
+    
+        email_message = email.message_from_bytes(email_msg)
+    
+        counter = 1
+        for part in email_message.walk():
+            if part.get_content_maintype() == "multipart":
+                continue
+            filename = part.get_filename()
+            if not filename:
+                ext = '.html'
+                filename = 'msg-part%08d%s' %(counter, ext)
+            
+            counter += 1
+            
+            content_type = part.get_content_type()
+            # print(content_type)
+            
+            summary = ['Date', 'Dividends', 'Opening balance', 'Closing balance']
+            
+            if "html" in content_type:
+                html_ = part.get_payload()
+                soup = BeautifulSoup(html_, 'html.parser')
+            
+                # Doesn't work, half info box missing
+                # inv = soup.select('table[class*="info"]')[1] # Use inspect tool in outlook not gmail because classnames don't appear in gmail
+                # rows = inv.findChildren(['th', 'tr'])
+                
+                row_list = []
+                
+                month = soup.find(text=re.compile('Closed transactions'))
+                month = re.sub('[^0-9-]','', month)
+                
+                row_list.append(month)
+                
+                for x in summary[1:]:
+                    value = float(re.sub('[^0-9.]', '', soup.find(text=re.compile(x)).findNext('td').text))
+                    row_list.append(value)
+                
+                data.append(row_list)
+    
+    summary_df = pd.DataFrame(data, columns=summary)
+    return summary_df
 
-    raw_email = email_msg.decode('utf-8')
-
-    email_message = email.message_from_bytes(email_msg)
-
-    counter = 1
-    for part in email_message.walk():
-        if part.get_content_maintype() == "multipart":
-            continue
-        filename = part.get_filename()
-        if not filename:
-            ext = '.html'
-            filename = 'msg-part%08d%s' %(counter, ext)
-        
-        counter += 1
-        
-        content_type = part.get_content_type()
-        # print(content_type)
-        
-        summary = ['Date', 'Dividends', 'Opening balance', 'Closing balance']
-        
-        if "html" in content_type:
-            html_ = part.get_payload()
-            soup = BeautifulSoup(html_, 'html.parser')
-        
-            # Doesn't work, half info box missing
-            # inv = soup.select('table[class*="info"]')[1] # Use inspect tool in outlook not gmail because classnames don't appear in gmail
-            # rows = inv.findChildren(['th', 'tr'])
-            
-            row_list = []
-            
-            month = soup.find(text=re.compile('Closed transactions'))
-            month = re.sub('[^0-9-]','', month)
-            
-            row_list.append(month)
-            
-            for x in summary[1:]:
-                value = float(re.sub('[^0-9.]', '', soup.find(text=re.compile(x)).findNext('td').text))
-                row_list.append(value)
-            
-            data.append(row_list)
-
-summary_df = pd.DataFrame(data, columns=summary)
+summary_df = get_summary()
 
 now = datetime.now()
 
 summary_df.loc[len(summary_df)] = [f'{now.year}-{now.month}' , '-', summary_df.loc[len(summary_df)-1]['Closing balance'], '-']
  
 summary_df['Target'] = summary_df['Opening balance'] * .05 # Aim for 5% returns a month
+
+summary_df['Goal'] = summary_df['Opening balance'] * .10
 
 # ace.columns = ace.columns.str[4:]
 # ace.drop('No', axis=1, inplace=True)
@@ -195,24 +207,24 @@ summary_df['Target'] = summary_df['Opening balance'] * .05 # Aim for 5% returns 
 float_values = ['Shares', 'Price', 'Total amount','Commission', 'Charges and fees','Total cost', 'Exchange rate']
 
 for column in float_values:
-    portfolio[column] = portfolio[column].str.rstrip('GBP').astype(float)
+    trades[column] = trades[column].str.rstrip('GBP').astype(float)
 
 ## Split ISIN and stock, need ISIN because some companies have the same ticker symbol, ISIN is the uid
-portfolio[['Ticker Symbol', 'ISIN']] = portfolio['Ticker Symbol'].str.split('/', expand=True)
+trades[['Ticker Symbol', 'ISIN']] = trades['Ticker Symbol'].str.split('/', expand=True)
 
 ## TODO: Temp fix by changing DTG to Jet2, Dartgroup changed their ticker symbol to JET2
-portfolio.replace('DTG','JET2', inplace=True)
+trades.replace('DTG','JET2', inplace=True)
 
 ## Airbus changed their ticker symbol
-portfolio['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
+trades['Ticker Symbol'].replace('AIRp', 'AIR', inplace=True)
 
-portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], format='%d-%m-%Y', dayfirst=True) #pd.to_datetime(portfolio["Trading day"]).dt.strftime('%m-%d-%Y')
+trades['Trading day'] = pd.to_datetime(trades['Trading day'], format='%d-%m-%Y', dayfirst=True) #pd.to_datetime(trades["Trading day"]).dt.strftime('%m-%d-%Y')
 
 ## For getting ROI, Dataframe needs to be ordered in ascending order and grouped by Ticker Symbol
-portfolio.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
+trades.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
 
 ## Datetime not compatible with excel
-#portfolio['Trading day'] = pd.to_datetime(portfolio['Trading day'], dayfirst=True)
+#trades['Trading day'] = pd.to_datetime(trades['Trading day'], dayfirst=True)
 
 ## Look into combining tickers using code like this 
 ## gb.loc[gb["geo_code"]=="E41000052",'geo_code'] = "E06000052" (Visual Analytics Week 7 lab007)
@@ -228,7 +240,7 @@ https://support.simplywall.st/hc/en-us/articles/360001480916-How-to-Create-a-Por
 
 '''
 
-simply_wall_st = portfolio.filter(['Ticker Symbol', 'Trading day', 'Shares', 'Price', 'Total amount', 'Type', 'Exchange rate'], axis=1)
+simply_wall_st = trades.filter(['Ticker Symbol', 'Trading day', 'Shares', 'Price', 'Total amount', 'Type', 'Exchange rate'], axis=1)
 
 #simply_wall_st['Total amount'] = simply_wall_st['Total amount'].astype(float)
 # simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].astype(float)
@@ -239,7 +251,9 @@ simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].replace(0.01, 
 simply_wall_st['Price'] = simply_wall_st['Price'] / simply_wall_st['Exchange rate']
 
 simply_wall_st.to_csv('Simply Wall St Portfolio.csv', index=False)
-portfolio.to_csv('Investment Portfolio.csv', index=False )
+trades.to_csv('Investment trades.csv', index=False )
+
+trades.to_sql('trades', engine, if_exists='replace')
 
 # ------------------------------------------------           
 #
@@ -248,10 +262,10 @@ portfolio.to_csv('Investment Portfolio.csv', index=False )
 #
 # ------------------------------------------------
 
-# all_holdings = portfolio['Ticker Symbol'].unique()
+# all_holdings = trades['Ticker Symbol'].unique()
 
 ## Getting all tickers and isin from portfolio
-temp_df = portfolio.drop_duplicates('Ticker Symbol')
+temp_df = trades.drop_duplicates('Ticker Symbol')
 
 all_holdings = temp_df[['Ticker Symbol', 'ISIN']] 
 
@@ -269,9 +283,11 @@ total_returns = 0
 holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
 returns_dict = {}
 
+averages = pd.DataFrame(columns=['Trading day', 'Ticker Symbol', 'Average', 'Exchange rate'])
+
 for symbol in all_holdings['Ticker Symbol'].tolist():
         
-    df = portfolio[portfolio['Ticker Symbol'] == symbol]
+    df = trades[trades['Ticker Symbol'] == symbol]
     
     df = df.reset_index().drop('index', axis=1)
         
@@ -288,7 +304,8 @@ for symbol in all_holdings['Ticker Symbol'].tolist():
         price_lis = df['Price'][:ii+1].tolist()
         type_lis = df['Type'][:ii+1].tolist()
         day_lis = df['Trading day'][:ii+1].tolist()
-        
+        fx_lis = df['Exchange rate'][:ii+1].tolist()
+
         #fees_lis = df['Charges and fees'][:ii+1].tolist()
     
         c = 0
@@ -296,12 +313,15 @@ for symbol in all_holdings['Ticker Symbol'].tolist():
         holdings = 0
         average = 0
                 
-        for s, p, t, d in list(zip(share_lis, price_lis, type_lis, day_lis)):
+        for s, p, t, d, fx in list(zip(share_lis, price_lis, type_lis, day_lis, fx_lis)):
             
             if t == 'Buy':
                 c += s*p
                 holdings += s
                 average = c / holdings
+                
+                averages.loc[len(averages)] = [d, symbol, average, fx]
+                
                 print(f'Buy Order: {s} @ {p}')
                 print(f'New Holdings Average: {holdings} @ {average}')
             
@@ -354,12 +374,13 @@ for symbol in all_holdings['Ticker Symbol'].tolist():
                         c -= s*average
             x += 1
 
+averages = averages.drop_duplicates(['Trading day', 'Ticker Symbol'], keep='last')
+
 print(f'Gross Returns: {total_returns}')
-net_returns = total_returns - portfolio['Charges and fees'].sum()
+net_returns = total_returns - trades['Charges and fees'].sum()
 print(f'Net Returns: {net_returns}')
 
 ## Returns period
-
 daily_returns_df = pd.DataFrame(returns_dict.items(), columns=['Date', 'Returns'])
 daily_returns_df['Date']= pd.to_datetime(daily_returns_df['Date'], format='%d-%m-%Y') 
 
@@ -385,7 +406,7 @@ def generate_holdings(all_holdings):
     
     for symbol in all_holdings:
                 
-        df = portfolio[portfolio['Ticker Symbol'] == symbol]
+        df = trades[trades['Ticker Symbol'] == symbol]
         
         df = df.reset_index().drop('index', axis=1)
         
@@ -531,7 +552,6 @@ def get_market(isin, symbol, old_symbol=''):
         #if len(market) == 0: print(len(market)) 
     return old_symbol, market
                 
-
 def generate_rsi(all_holdings):
         
     for row in all_holdings.iloc:
@@ -739,6 +759,12 @@ def send_email(rsi_dict):
 ## Current holdings in portfolio
 generate_holdings(all_holdings['Ticker Symbol'].tolist())
 
+db_URI = os.getenv('AWS_DATABASE_URL')
+engine = create_engine(db_URI)
+
+returns_df = pd.DataFrame(holdings_dict).transpose().reset_index(level=0).rename(columns={'index':'Ticker Symbol'})
+returns_df.to_sql('returns', engine, if_exists='replace')
+
 ## Add watchlist for html table
 generate_holdings(watchlist)
 
@@ -753,11 +779,14 @@ send_email(holdings_dict)
 monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
 monthly_returns_df.reset_index(level=0, inplace=True)
 
+monthly_returns_df.to_csv('monthly returns.csv') 
+
 # Monthly Returns and targets
 fig = go.Figure(data=[
     go.Scatter(name='Target', x=summary_df['Date'], y=summary_df['Target']),
-    go.Scatter(name='Minimun Goal', x=summary_df['Date'], y=[100 for x in range(len(summary_df['Date']))]),
+    go.Scatter(name='Minimun Target', x=summary_df['Date'], y=[100 for x in range(len(summary_df['Date']))]),
     go.Bar(name='Return', x=monthly_returns_df['Date'], y=monthly_returns_df['Returns']),
+    go.Scatter(name='Goal', x=summary_df['Date'], y=summary_df['Goal']),
 ])
 
 # Change the bar mode
@@ -790,14 +819,14 @@ fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date', title='Week
 plot(fig)
 
 # Buy/Sell
-counts = portfolio['Type'].value_counts()       
+counts = trades['Type'].value_counts()       
 counts_df = counts.reset_index()
 counts_df.columns = ['Type', 'Count']
 fig = px.pie(counts_df, values='Count', names='Type')
 plot(fig)
 
 ## Stock activity - How many times I've bought/sold a stock         
-stocks = portfolio['Ticker Symbol'].value_counts()         
+stocks = trades['Ticker Symbol'].value_counts()         
 stocks = stocks.reset_index()
 stocks.columns = ['Ticker Symbol', 'Count']           
 fig = px.pie(stocks, values='Count', names='Ticker Symbol', title='Portfolio Trading Activity')
@@ -819,9 +848,24 @@ def stock_split_adjustment(r):
     
     return r
 
+def avg_stock_split_adjustment(r):
+        
+    market = get_market(r['ISIN'], r['Ticker Symbol'])[1] 
+    
+    ticker = get_yf_symbol(market, r['Ticker Symbol'])
+    
+    aapl = yf.Ticker(ticker)
+    split_df = aapl.splits.reset_index()
+    split = split_df[split_df['Date'] > r['Trading day']]['Stock Splits'].sum()
+    
+    if split > 0:
+        r.Average = r.Average/split
+    
+    return r
+
 def get_buy_sell(ticker):
                     
-    df = portfolio[portfolio['Ticker Symbol'] == ticker]
+    df = trades[trades['Ticker Symbol'] == ticker]
     
     df['dolla'] = df['Price'] / df['Exchange rate']
     df['Trading day'] = pd.to_datetime(df['Trading day']) # Match index date format
@@ -835,7 +879,7 @@ def get_buy_sell(ticker):
     return buys, sells
 
 def chart(ticker):
-
+    
     market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
     
     buys, sells = get_buy_sell(ticker)
@@ -848,6 +892,10 @@ def chart(ticker):
     index = web.DataReader(yf_symbol, 'yahoo', start, end)
     index = index.reset_index()
     
+    averages_df = averages[averages['Ticker Symbol'] == ticker]
+    averages_df['ISIN'] = all_holdings[all_holdings['Ticker Symbol'] == ticker]['ISIN'].values[0]
+    averages_df = averages_df.apply(avg_stock_split_adjustment, axis=1)
+
     # ## TODO: Allow user to switch between line and candlestick chart
 
     # # Add traces
@@ -894,12 +942,32 @@ def chart(ticker):
                                               color='DarkSlateGrey')),
                         ))
     
+    # shapes = list()
+    # for i in (20, 40, 60):
+    #     shapes.append({'type': 'line',
+    #                    'xref': 'x',
+    #                    'yref': 'y',
+    #                    'x0': ,
+    #                    'y0': 0,
+    #                    'x1': i,
+    #                    'y1': 1})
+    
+    def hlines(r):
+        fig.add_hline(y=r['Average']/r['Exchange rate'], line_width=3, line_dash="dash")
+
+    averages_df[-5:-1].apply(hlines, axis=1)
+    
+    if index.iloc[-1]['Adj Close'] > averages_df.iloc[-1]['Average']/averages_df.iloc[-1]['Exchange rate']:
+        fig.add_hline(y=averages_df.iloc[-1]['Average']/averages_df.iloc[-1]['Exchange rate'], line_width=3, line_dash="dash", line_color="green")
+    else:
+        fig.add_hline(y=averages_df.iloc[-1]['Average']/averages_df.iloc[-1]['Exchange rate'], line_width=3, line_dash="dash", line_color="red")
+
     fig.update_layout(hovermode="x unified", title=f'{ticker} Buy/Sell points') # Currently plotly doesn't support hover for overlapping points in same trace
     
     plot(fig)
 
 ## My Top 5 most traded stocks
-top_stocks = portfolio['Ticker Symbol'].value_counts().head()
+top_stocks = trades['Ticker Symbol'].value_counts().head()
 
 for stock in top_stocks.index:
     chart(stock)
@@ -1044,6 +1112,7 @@ count = buys['Target'].value_counts().add(sells['Target'].value_counts(),fill_va
 
 percentage = count[1]/count.sum() *100
 percentage = '{:.2f}'.format(percentage)
+
 print(f'Successful trades {percentage}%')
 
 ## ------------------------- How do Trading 212 Users Behave? ------------------------- ##
