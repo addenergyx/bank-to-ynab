@@ -42,9 +42,9 @@ engine = create_engine(db_URI)
 
 ## Using Long table as it's more flexible for this dataset
 ## Improve: use database instead of csv
-leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
-risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
-fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+# leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
+# risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+# fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
 
 # Bad practice to dynamically create variables
 leaderboard = pd.read_sql_table("leaderboard", con=engine, index_col='index', parse_dates=['Last_updated'])
