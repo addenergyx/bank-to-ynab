@@ -42,9 +42,9 @@ engine = create_engine(db_URI)
 
 ## Using Long table as it's more flexible for this dataset
 ## Improve: use database instead of csv
-# leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
-# risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
-# fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+leaderboard = pd.read_csv('leaderboard.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True) # Date format changes for some observations when reading csv unsure why
+risers = pd.read_csv('risers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
+fallers = pd.read_csv('fallers.csv', parse_dates=['Date', 'Last_updated'], dayfirst=True)
 
 # Bad practice to dynamically create variables
 leaderboard = pd.read_sql_table("leaderboard", con=engine, index_col='index', parse_dates=['Last_updated'])
@@ -147,7 +147,7 @@ for d in complete_df['Date'].unique():
 
 complete_df = comp.copy()
 complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
-complete_df.to_csv('leaderboard.csv', index=False)
+complete_df.to_csv(f'leaderboard-{timestamp}.csv', index=False)
 
 complete_df.to_sql('leaderboard', engine, if_exists='replace')
 
@@ -222,8 +222,8 @@ def user_data(xpath, file, historical_df):
     
     return complete_df
 
-risers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[2]", 'risers.csv', risers)
-fallers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[3]", 'fallers.csv', fallers)
+risers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[2]", f'risers-{timestamp}.csv', risers)
+fallers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[3]", f'fallers-{timestamp}.csv', fallers)
 
 risers_df.to_sql('risers', engine, if_exists='replace')
 fallers_df.to_sql('fallers', engine, if_exists='replace')
