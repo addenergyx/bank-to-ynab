@@ -45,6 +45,9 @@ def get_some_transactions(access_token: str, start_date: str, end_date: str) -> 
         transactions_response = client.Transactions.get(access_token, start_date, end_date, count=500) # Max number of transactions is 500 default is 100
     except PlaidErrors.PlaidError as e:
         
+        print(access_token)
+        print(e.code)
+        
         if e.code == 'ITEM_LOGIN_REQUIRED':
              
             ## Plaid Institution name
