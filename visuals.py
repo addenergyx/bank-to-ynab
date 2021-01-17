@@ -250,14 +250,14 @@ def period_chart(time='M'):
         timeframe_returns_df['Date'] = pd.to_datetime(timeframe_returns_df['Date']) + timedelta(days=-2) # Last working day of week
 
     if time == 'M' or time == 'Q':
-        timeframe_returns_df['Date'] = timeframe_returns_df['Date'].dt.strftime('%m-%Y')
+        timeframe_returns_df['Date'] = timeframe_returns_df['Date'].dt.strftime('%Y-%m')
     elif time == 'A-APR'or time == 'Y':
         timeframe_returns_df['Date'] = timeframe_returns_df['Date'].dt.strftime('%Y')
     else:
         timeframe_returns_df['Date'] = timeframe_returns_df['Date'].dt.strftime('%d-%m-%Y')
 
     fig = px.bar(timeframe_returns_df, x='Date', y='Returns', color='Date', title='Returns')
-    
+
     return fig
 
 def profit_loss_chart():
