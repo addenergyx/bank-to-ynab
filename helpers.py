@@ -344,7 +344,8 @@ def get_buy_sell(ticker):
 
     df = portfolio[portfolio['Ticker Symbol'] == ticker]
     
-    df['Execution_Price'] = df['Price'] / df['Exchange rate']
+    df['Execution_Price'] = df['Price'] / df['Exchange rate'] # Convert price to original currency
+    
     df['Trading day'] = pd.to_datetime(df['Trading day']) # Match index date format
     
     buys = df[df['Type']=='Buy']
