@@ -29,10 +29,57 @@ from sqlalchemy import create_engine
 from pytrends import dailydata
 from helpers import get_buy_sell, get_yf_symbol, time_frame_returns
 
+# aapl = yf.Ticker('TSLA')
+# a = aapl.recommendations
+# b = aapl.calendar
+# c = aapl.info
+
 load_dotenv(verbose=True, override=True)
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
+
+def fig_layout(fig):
+    # fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
+    #                    paper_bgcolor='rgba(0,0,0,0)',
+    #                    plot_bgcolor='rgba(0,0,0,0)'
+    #                   )
+    return fig
+
+def current_price(r):
+    r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+    return r
+
+def get_holdings():
+    holdings = pd.read_sql_table("holdings", con=engine, index_col='index')
+    holdings = holdings.apply(current_price, axis=1)
+    return holdings
+
+def day_treemap():
+    # 1 Day Performance
+    holdings = get_holdings()
+    holdings['PCT'] = (holdings['CURRENT PRICE'] - holdings['PREV_CLOSE']) / abs(holdings['PREV_CLOSE']) *100
+    fig = px.treemap(holdings, path=['Sector', 'Industry', 'Ticker'], values='MARKET VALUE', color='PCT',
+                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0)
+    return fig_layout(fig)
+
+def return_treemap():
+    holdings = get_holdings()
+    holdings['Ri'] = (holdings['CURRENT PRICE'] - holdings['PRICE']) / abs(holdings['PRICE']) *100 # May be slightly off due to fx
+    fig = px.treemap(holdings, path=['Sector', 'Industry', 'Ticker'], values='MARKET VALUE', color='Ri',
+                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0)
+    
+    fig.update_layout(    
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        # legend_title="Legend Title",
+        # font=dict(
+        #     color="White"
+        # ),
+        showlegend=False,
+    )
+    return fig
 
 def chart(ticker):
     
@@ -206,7 +253,7 @@ def performance_chart(ticker):
                             x=0.01
                     ))
     
-    return fig
+    return fig_layout(fig)
 
 # Monthly Returns and targets
 def goal_chart():
@@ -224,20 +271,20 @@ def goal_chart():
     # Change the bar mode
     fig.update_layout(barmode='overlay', title='Monthly Returns and targets')
     
-    return fig
+    return fig_layout(fig)
 
 # Cumsum
 def cumsum_chart():
     monthly_returns_df = pd.read_sql_table("summary", con=engine, index_col='index')
     monthly_returns_df['Rolling Returns'] = monthly_returns_df['Returns'].cumsum()
     fig = px.bar(monthly_returns_df, x='Date', y='Rolling Returns', title='Rolling Realised Returns')
-    return fig
+    return fig_layout(fig)
 
 def dividend_chart():
     # Dividends
     summary_df = pd.read_sql_table("summary", con=engine, index_col='index')
     fig = px.bar(summary_df, x='Date', y='Dividends', color='Date', title='Dividends')
-    return fig
+    return fig_layout(fig)
 
 def period_chart(time='M'):
         
@@ -258,7 +305,7 @@ def period_chart(time='M'):
 
     fig = px.bar(timeframe_returns_df, x='Date', y='Returns', color='Date', title='Returns')
 
-    return fig
+    return fig_layout(fig)
 
 def profit_loss_chart():
     # P/L
@@ -273,7 +320,7 @@ def profit_loss_chart():
                     name='Losses'
                     ))
     fig.update_layout(barmode='overlay')
-    return fig
+    return fig_layout(fig)
 
 # # Daily Returns
 # fig = px.bar(daily_returns_df, x='Date', y='Returns', color='Date', title='Daily Returns')
