@@ -65,7 +65,11 @@ headers = driver.find_elements_by_tag_name('thead')
 columns = ['Ticker'] + [x.text for x in headers[0].find_elements_by_tag_name('th')[1:9]]
 
 live_portfolio.columns = columns
-  
+
+# https://stackoverflow.com/questions/60030570/psycopg2-programmingerror-incomplete-placeholder-without
+# Fix potential SQL injection hole issue, doesn't like '%' in column name
+live_portfolio.rename(columns={'RESULT (%)':'RESULT_PCT'}, inplace=True)  
+
 def remove(string): 
     pattern = re.compile(r'\s+') 
     return re.sub(pattern, '', string) 
@@ -76,7 +80,7 @@ for col in cols:
     
 live_portfolio[cols] = live_portfolio[cols].apply(pd.to_numeric, errors='coerce')
 
-# live_portfolio.to_sql('holdings', engine, if_exists='replace')
+live_portfolio.to_sql('holdings', engine, if_exists='replace')
 
 driver.close()
 driver.quit()
