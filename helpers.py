@@ -174,6 +174,13 @@ def get_yf_symbol(market, symbol):
         yf_symbol = f'{symbol}.SW'
     elif market == 'Euronext Paris':
         yf_symbol = f'{symbol}.PA'
+    elif symbol == 'IAG':
+        """
+        Works assuming I never buy IAMGold Corporation (IAG)
+        International Consolidated Airlines Group SA in equities df 
+        whereas IAG SA in holdings so string match doesn't work
+        """
+        yf_symbol = 'IAG.L'  
     else:
         yf_symbol = symbol
     return yf_symbol
