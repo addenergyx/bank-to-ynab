@@ -17,7 +17,7 @@ from dash_extensions.callback import DashCallbackBlueprint
 import plotly.express as px
 from random import randint
 import dash_table
-from visuals import performance_chart, ml_model, period_chart, goal_chart, profit_loss_chart, cumsum_chart, dividend_chart
+from visuals import performance_chart, ml_model, period_chart, goal_chart, profit_loss_chart, cumsum_chart, dividend_chart, return_treemap
 from components import Fab
 from server import server
 import os
@@ -99,6 +99,15 @@ profit_card = [
                         dcc.Graph(id='profit-graph')
                     )
                 ], id='profit-block', hidden=False)
+             ]
+
+map_card = [
+                html.Div([            
+                   #dcc.Loading(
+                        dcc.Graph(id='treemap-graph'#, figure=return_treemap()
+                                  )
+                    #)
+                ], id='treemap-block', hidden=False)
              ]
 
 stats_card = [
@@ -254,7 +263,7 @@ body = html.Div(
                                   ),
                               ]),
                               
-                           ], id='side-panel', width=12, lg=3
+                           ], id='side-panel', width=12, lg=2
                         ),
                       
                        ## Main panel
@@ -289,6 +298,12 @@ body = html.Div(
                                
                                dbc.Row(
                                    [
+                                       dbc.Col(html.Div(map_card), width=12),
+                                   ], className = 'data-row'
+                               ),
+                                                              
+                               dbc.Row(
+                                   [
                                        dbc.Col(html.Div(graph_card), width=12),
                                    ], className = 'data-row'
                                ),
@@ -318,8 +333,9 @@ body = html.Div(
                                ),
                                                     
                                dcc.Interval(id="weight-interval", n_intervals=0, interval=600000),
+                               dcc.Interval(id="map-interval", n_intervals=0, interval=20000),
                               
-                           ], id='main-panel', width=12, lg=8
+                           ], id='main-panel', width=12, lg=9
                      )
                 ], no_gutters=True),
              ])
@@ -349,6 +365,11 @@ def event_s(data):
     
     return build_table(portfolio)
 
+@app.callback(Output('treemap-graph','figure'), 
+              [Input("map-interval", "n_intervals")])
+def event_m(data):
+    return return_treemap()
+    
 @app.callback(Output('graphy','figure'), 
               [Input("ticker-dropdown", "value")])
 def event_a(ticker):
