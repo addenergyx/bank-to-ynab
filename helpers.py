@@ -57,9 +57,7 @@ def get_portfolio():
                       'Execution venue', 'Exchange rate', 'Total cost']
     
     mailbox_list = mailbox[0].split()
-    
-    all_212_equities = pd.read_csv('stock_list.csv')
-    
+        
     for item in mailbox_list:
         
     # for num in data[0].split():
@@ -143,17 +141,18 @@ def get_portfolio():
     
     '''
     
-    simply_wall_st = trades.filter(['Ticker Symbol', 'Trading day', 'Shares', 'Price', 'Total amount', 'Type', 'Exchange rate'], axis=1)
+    # simply_wall_st = trades.filter(['Ticker Symbol', 'Trading day', 'Shares', 'Price', 'Total amount', 'Type', 'Exchange rate'], axis=1)
     
-    #simply_wall_st['Total amount'] = simply_wall_st['Total amount'].astype(float)
-    # simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].astype(float)
-    # simply_wall_st['Price'] = simply_wall_st['Price'].astype(float)
+    # #simply_wall_st['Total amount'] = simply_wall_st['Total amount'].astype(float)
+    # # simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].astype(float)
+    # # simply_wall_st['Price'] = simply_wall_st['Price'].astype(float)
     
-    simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].replace(0.01, 1)
+    # 
+    # simply_wall_st['Exchange rate'] = simply_wall_st['Exchange rate'].replace(0.01, 1)
+    # simply_wall_st['Price'] = simply_wall_st['Price'] / simply_wall_st['Exchange rate']
     
-    simply_wall_st['Price'] = simply_wall_st['Price'] / simply_wall_st['Exchange rate']
+    # simply_wall_st.to_csv('Simply Wall St Portfolio.csv', index=False)
     
-    simply_wall_st.to_csv('Simply Wall St Portfolio.csv', index=False)
     trades.to_csv('Investment trades.csv', index=False )
     trades.to_sql('trades', engine, if_exists='replace')
     
@@ -191,7 +190,7 @@ def get_market(isin, symbol, old_symbol=''):
     ## As 212 doesn't provide the company name in the daily statement there is no way for me to link old tickers with the new one
     ## so will manually replace tickers here
     ## Preventing this in the future by saving all old tickers in a csv
-    all_212_equities = pd.read_csv('stock_list.csv')
+    all_212_equities = pd.read_sql_table("equities", con=engine, index_col='index')
 
     if symbol == 'AO.':
         old_symbol = symbol
@@ -343,8 +342,6 @@ def get_summary():
     
     return summary_df
 
-get_summary()
-
 def get_buy_sell(ticker):
     
     portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day'])
@@ -365,7 +362,225 @@ def get_buy_sell(ticker):
 
 def formatting(num):
     return round(num, 2)
+
+def get_returns():
     
+    trades = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day'])
+    
+    ## Getting all tickers and isin from portfolio
+    temp_df = trades.drop_duplicates('Ticker Symbol')
+    
+    all_holdings = temp_df[['Ticker Symbol', 'ISIN']] 
+    
+    total_returns = 0
+    
+    holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
+    returns_dict = collections.defaultdict(dict)
+    
+    averages = pd.DataFrame(columns=['Trading day', 'Ticker Symbol', 'Average', 'Exchange rate'])
+    
+    for symbol in all_holdings['Ticker Symbol'].tolist():
+            
+        df = trades[trades['Ticker Symbol'] == symbol]
+        
+        df = df.reset_index().drop('index', axis=1)
+            
+        a = df[df.Type == 'Sell']
+        
+        print(f'-------{symbol}-------')
+        
+        for ii, sell_row in a.iterrows():
+            
+            ## currently does not take into account fees 
+            ## should use total cost column instead later
+            
+            share_lis = df['Shares'][:ii+1].tolist()
+            price_lis = df['Price'][:ii+1].tolist()
+            type_lis = df['Type'][:ii+1].tolist()
+            day_lis = df['Trading day'][:ii+1].tolist()
+            fx_lis = df['Exchange rate'][:ii+1].tolist()
+    
+            #fees_lis = df['Charges and fees'][:ii+1].tolist()
+        
+            c = 0
+            x = 0
+            holdings = 0
+            average = 0
+                    
+            for s, p, t, d, fx in list(zip(share_lis, price_lis, type_lis, day_lis, fx_lis)):
+                
+                if t == 'Buy':
+                    c += s*p
+                    holdings += s
+                    average = c / holdings
+                    
+                    averages.loc[len(averages)] = [d, symbol, average, fx]
+                    
+                    print(f'Buy Order: {s} @ {p}')
+                    print(f'New Holdings Average: {holdings} @ {average}')
+                
+                else:
+                    ## Selling stock
+                    
+                    ## if ii == len(share_lis): <- Doesn't work, This is probably because in the Python 3.x, 
+                    ## zip returns a generator object. This object is not a list
+                    ## https://stackoverflow.com/questions/31011631/python-2-3-object-of-type-zip-has-no-len/38045805
+        
+                    if ii == x:
+                        
+                        average = c / holdings
+                        gain_loss = p - average
+                        total_profit = gain_loss * s
+                        print(f'Current Holdings Average: {holdings} @ {average}')
+                        print(f'Final Sell Order: {s} @ {p}')
+                        print(f'Total Return on Invesatment: {round(total_profit, 2)}')
+                        total_returns += round(total_profit, 2)
+                        
+                        if symbol in holdings_dict:
+                            # returns_dict[symbol] += total_profit
+                            
+                            if total_profit > 0:
+                                holdings_dict[symbol]['Gains'] += total_profit
+                            else:
+                                holdings_dict[symbol]['Losses'] += total_profit
+                            
+                            holdings_dict[symbol]['Gross Returns'] += total_profit
+                            
+                        else:
+                            # returns_dict[symbol] = total_profit
+                            
+                            if total_profit > 0:
+                                holdings_dict[symbol]['Gains'] = total_profit
+                                holdings_dict[symbol]['Losses'] = 0
+                            else:
+                                holdings_dict[symbol]['Losses'] = total_profit
+                                holdings_dict[symbol]['Gains'] = 0
+                            
+                            holdings_dict[symbol]['Gross Returns'] = total_profit
+                                                  
+                        if d in returns_dict:    
+                            returns_dict[d]['Returns'] += total_profit
+                            
+                            if total_profit > 0:
+                                returns_dict[d]['Gains'] += total_profit
+                            else:
+                                returns_dict[d]['Losses'] += total_profit
+                            
+                        else:
+                            returns_dict[d]['Returns'] = total_profit
+                            
+                            if total_profit > 0:
+                                returns_dict[d]['Gains'] = total_profit
+                                returns_dict[d]['Losses'] = 0
+                            else:
+                                returns_dict[d]['Losses'] = total_profit
+                                returns_dict[d]['Gains'] = 0
+                                                
+                        #print('-----------------')         
+                        break #Use break because don't care about orders after sell order
+                    
+                    else:
+                        holdings -= s 
+                        print(f'Sell Order: {s} @ {p}')
+                        
+                        if holdings == 0:
+                            ## Reset average after liquidating stock
+                            average = 0
+                            c = 0
+                            print('Sold all holdings')
+                        else:
+                            print(f'New Holdings Average: {holdings} @ {average}')
+                            ## Take away shares from from holding average
+                            ## However average stays the same
+                            c -= s*average
+                x += 1
+    
+    averages = averages.drop_duplicates(['Trading day', 'Ticker Symbol'], keep='last')
+    
+    print(f'Gross Returns: {total_returns}')
+    net_returns = total_returns - trades['Charges and fees'].sum()
+    print(f'Net Returns: {net_returns}')
+    
+    #holdings_df = pd.DataFrame.from_dict(holdings_dict, orient='index').reset_index().rename(columns={'index':'Ticker Symbol'})
+    
+    returns_df = pd.DataFrame.from_dict(returns_dict, orient='index').reset_index().rename(columns={'index':'Date'})
+    returns_df.to_sql('returns', engine, if_exists='replace')
+    
+    def generate_holdings(all_holdings):
+        
+        for symbol in all_holdings:
+                    
+            df = trades[trades['Ticker Symbol'] == symbol]
+            
+            df = df.reset_index().drop('index', axis=1)
+            
+            # formatting float to resolve floating point Arithmetic Issue
+            # https://www.codegrepper.com/code-examples/delphi/floating+point+precision+in+python+format
+            # https://docs.python.org/3/tutorial/floatingpoint.html
+            # could also use the math.isclose() function
+            df['Shares'] = df['Shares'].apply(lambda x: float("{:.6f}".format(x))) # Trading 212 only allows fraction of shares up to 6dp 
+        
+            ## Watchlist
+            if df.empty:
+                holdings_dict[symbol]['Current Holdings'] = 0
+                holdings_dict[symbol]['Current Average'] = 0.0
+            
+            else:
+                print(f'------- {symbol} History -------')
+                
+                for ii, row in df.iterrows():
+                    
+                    ## currently does not take into account fees 
+                    ## should use total cost column instead later
+                    ## trading212 doesn't include fees in returns per stock
+                    
+                    share_lis = df['Shares'][:ii+1].tolist()
+                    price_lis = df['Price'][:ii+1].tolist()
+                    type_lis = df['Type'][:ii+1].tolist()
+                
+                    c = holdings = average = 0 
+                    #= x
+                            
+                    for s, p, t, in list(zip(share_lis, price_lis, type_lis)):
+                        
+                        if t == 'Buy':
+                            c += s*p
+                            holdings += s
+                            average = c / holdings
+                            print(f'Buy Order: {s} @ {p}')
+                            print(f'New Holdings Average: {holdings} @ {average}')
+                        
+                        else:
+            
+                            holdings -= s 
+                            print(f'Sell Order: {s} @ {p}')
+                            
+                            if holdings == 0:
+                                ## Reset average after liquidating stock
+                                average = 0
+                                c = 0
+                                print('Sold all holdings')
+                            else:
+                                print(f'New Holdings Average: {holdings} @ {average}')
+                                ## Take away shares from from holding average
+                                ## However average stays the same
+                                c -= s*average
+                  
+                holdings_dict[symbol]['Current Holdings'] = holdings #formatting(holdings)
+                holdings_dict[symbol]['Current Average'] = average #formatting(average)
+                    
+                print(f'Holdings Average: {holdings} @ {average}')
+    
+    ## Current holdings in portfolio
+    generate_holdings(all_holdings['Ticker Symbol'].tolist())
+    
+    holdings_df = pd.DataFrame(holdings_dict).transpose().reset_index(level=0).rename(columns={'index':'Ticker Symbol'})
+    holdings_df.to_sql('holdings', engine, if_exists='replace')
+
+# get_portfolio()
+# get_returns()
+# get_summary()
+
 # ------------------------------------------------           
 #
 # Relative Strength Index Indicator
