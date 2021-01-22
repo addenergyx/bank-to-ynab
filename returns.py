@@ -51,14 +51,14 @@ def returns():
     
     all_holdings = temp_df[['Ticker Symbol', 'ISIN']] 
     
-    watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 
-                 'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD', 'FSLY', 'WKHS', 'RMV', 'TW.', 'PSN', 'MU', 'AMD']
+    # watchlist = ['NIO','SMAR','RDW','PYPL','NFLX', 'RVLV', 'SMWH', 'AMZN', 'GOOGL', 'MCD', 'MSFT', 'AAPL', 'FB', 
+    #              'WMT', 'KIE', 'WPC', 'SHOP', 'UBER', 'MTCH', 'JD.', 'DLR', 'CARD', 'FSLY', 'WKHS', 'RMV', 'TW.', 'PSN', 'MU', 'AMD']
     
-    def returnNotMatches(a, b):
-        return [x for x in b if x not in a]
+    # def returnNotMatches(a, b):
+    #     return [x for x in b if x not in a]
     
-    ## Remove stocks already in my portfolio
-    watchlist = returnNotMatches(all_holdings['Ticker Symbol'].tolist(), watchlist)
+    # ## Remove stocks already in my portfolio
+    # watchlist = returnNotMatches(all_holdings['Ticker Symbol'].tolist(), watchlist)
     
     total_returns = 0
     
