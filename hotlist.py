@@ -104,6 +104,7 @@ update = driver.find_element_by_class_name("pt-footer-notice").text
 last_update = get_last_update(update)
 
 for stock in elements:
+    print(stock.find_element_by_class_name('pt-name').text)
     daily_hotlist.append([stock.find_element_by_class_name('pt-name').text, 
             stock.find_element_by_class_name('pt-number').text, 
             stock.find_element_by_class_name('pt-holders-count').text, 
@@ -171,6 +172,7 @@ def user_data(xpath, file, historical_df):
     elements = driver.find_elements_by_class_name("pt-popularity-content-item")
     
     for stock in elements[1:]:
+        print(stock.find_element_by_class_name('pt-name').text)
         daily.append([stock.find_element_by_class_name('pt-name').text, 
                 stock.find_element_by_class_name('pt-number').text, 
                 stock.find_element_by_class_name('pt-change').text,
