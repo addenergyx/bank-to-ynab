@@ -17,11 +17,14 @@ from dash_extensions.callback import DashCallbackBlueprint
 import plotly.express as px
 from random import randint
 import dash_table
-from visuals import performance_chart, ml_model, period_chart, goal_chart, profit_loss_chart, cumsum_chart, dividend_chart, return_treemap
+from visuals import *
+from helpers import get_portfolio
+#performance_chart, ml_model, period_chart, goal_chart, profit_loss_chart, cumsum_chart, dividend_chart, return_treemap, convert_to_gbp, get_holdings
 from components import Fab
 from server import server
 import os
 from sqlalchemy import create_engine
+from live_portfolio import live_portfolio
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
@@ -116,12 +119,12 @@ stats_card = [
                         html.H2('Results'),
                         html.P("This Month's Opening Balance"),
                         html.Strong(html.P(id='monthly-repayment', className='result')),
-                        html.P("This Month's Realised P/L"),
-                        html.Strong(html.P(id='monthly-profit', className='result')),
                         html.P('Total Realised P/L'),
                         html.Strong(html.P(id='total-repayable', className='result')),
+                        html.P("This Month's Realised P/L"),
+                        html.Strong(html.P(id='monthly-profit', className='result')),
                         # html.P('Floating P/L'),
-                        # html.Strong(html.P(id='total-interest', className='result'))
+                        # html.Strong(html.P(id='floats', className='result'))
                     ], className='stats'
                 )
              ]
@@ -221,6 +224,7 @@ app.config.suppress_callback_exceptions = True
 
 tickers = [{'label':str(x), 'value': x} for x in set(portfolio['Ticker Symbol'])]
 charts = [{'label':str(x), 'value': x} for x in ['Goals', 'Monthly', 'Dividends', 'Cumulative', 'Profit/Loss', 'Daily', 'Weekly', 'Quarterly', 'Fiscal Year']]
+maps = [{'label':str(x), 'value': x} for x in ['Day', 'Portfolio']]
 
 body = html.Div(
             [
@@ -250,15 +254,34 @@ body = html.Div(
                                     style={'margin-top':'100px'}
                                   ),
                               ]),
-                               
+                            
+                             html.Div(
+                                   [
+                                  dcc.Dropdown(
+                                    id='map-dropdown',
+                                    options=maps,
+                                    value='Day',
+                                    clearable=False,
+                                    style={'margin-top':'50px'}
+                                  ),
+                              ]), 
+                            
                               html.Div(
                                    [
                                   dcc.Dropdown(
                                     id='ticker-dropdown',
                                     options=tickers,
                                     value='TSLA',
-                                    #clearable=False,
                                     searchable=True,
+                                    style={'margin-top':'50px'}
+                                  ),
+                              ]),
+                              
+                              html.Div(
+                                   [
+                                  html.Button(
+                                    'Update Portfolio',
+                                    id='update-btn',
                                     style={'margin-top':'50px'}
                                   ),
                               ]),
@@ -332,8 +355,9 @@ body = html.Div(
                                    ], className = 'data-row'
                                ),
                                                     
-                               dcc.Interval(id="weight-interval", n_intervals=0, interval=600000),
+                               dcc.Interval(id="weight-interval", n_intervals=0, interval=60000),
                                dcc.Interval(id="map-interval", n_intervals=0, interval=20000),
+                               html.Div(id='container-button-basic', hidden=True)
                               
                            ], id='main-panel', width=12, lg=9
                      )
@@ -342,7 +366,7 @@ body = html.Div(
 
 @app.callback([Output("monthly-repayment", "children"), Output("total-repayable", "children"), 
                 #Output("total-interest", "children"),  
-                Output("monthly-profit", "children")], 
+                Output("monthly-profit", "children"), Output("monthly-profit", "style")], 
               [Input("weight-interval", "n_intervals")])
 def event_cb(data):
     
@@ -354,7 +378,33 @@ def event_cb(data):
     month = round(summary_df['Returns'].iloc[-1], 2)
     profit = round(summary_df['Returns'].cumsum().iloc[-1], 2)
     
-    return f'£{balance}', f'£{profit}', f'£{month}'
+    style = {'color': 'green'} if profit > 0 else {'color': 'red'}
+    
+    return f'£{balance}', f'£{profit}', f'£{month}', style
+
+# @app.callback(Output("floats", "children"),
+#               [Input("weight-interval", "n_intervals")])
+# def event(data):
+    
+#     holdings = get_holdings()
+#     holdings['UK MARKET VALUE'] = ''
+#     holdings = holdings.apply(convert_to_gbp, axis=1)
+    
+#     #sum(holdings['MARKET VALUE'])
+    
+#     balance = "{:.2f}".format(round(sum(holdings['UK MARKET VALUE']), 2))
+    
+#     return f'£{balance}'
+
+@app.callback(
+    Output('container-button-basic', 'children'),
+    [Input('update-btn', 'n_clicks')])
+def update_output(n_clicks):
+    print(n_clicks)
+    if n_clicks is None:
+        return ''
+    live_portfolio()
+    return ''
 
 @app.callback(Output('full-data-card','children'), 
               [Input("weight-interval", "n_intervals")])
@@ -364,16 +414,18 @@ def event_s(data):
     portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
     
     return build_table(portfolio)
-
-@app.callback(Output('treemap-graph','figure'), 
-              [Input("map-interval", "n_intervals")])
-def event_m(data):
-    return return_treemap()
     
 @app.callback(Output('graphy','figure'), 
               [Input("ticker-dropdown", "value")])
 def event_a(ticker):
     return performance_chart(ticker)
+
+@app.callback(Output('treemap-graph','figure'), 
+              [Input("map-dropdown", "value"), Input("map-interval", "n_intervals")])
+def event_o(option, ticks):
+    if option == 'Portfolio':
+        return return_treemap()
+    return day_treemap()
 
 @app.callback(Output('profit-graph','figure'), 
               [Input("chart-dropdown", "value")])
