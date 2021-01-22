@@ -28,16 +28,86 @@ from pytrends.request import TrendReq
 from sqlalchemy import create_engine
 from pytrends import dailydata
 from helpers import get_buy_sell, get_yf_symbol, time_frame_returns
-
-# aapl = yf.Ticker('TSLA')
-# a = aapl.recommendations
-# b = aapl.calendar
-# c = aapl.info
+from forex_python.converter import CurrencyRates
+from currency_converter import CurrencyConverter
 
 load_dotenv(verbose=True, override=True)
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
+c = CurrencyRates()
+
+def current_price(r):
+    #print(r['YF_TICKER'])
+    try:
+        r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+    except:
+        r['CURRENT PRICE'] = float('NaN')
+    return r
+
+def get_holdings():
+    holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+    holdings = holdings.apply(current_price, axis=1)
+    holdings.dropna(axis=0, inplace=True)
+    
+    # Recent ticker change due to merger, Yahoo finance pulls wrong data, should be fixed later
+    holdings = holdings[holdings['Ticker'] != 'UWMC']
+    
+    holdings['PREV_CLOSE'] = holdings['PREV_CLOSE'].astype('float')
+    return holdings
+
+# holdings = get_holdings()
+# holdings = holdings.apply(current_price, axis=1)
+# holdings['CURRENT MARKET VALUE'] = ''
+# holdings['OG MARKET VALUE'] = ''
+
+def convert_to_gbp(r):
+    tickr = yf.Ticker(r['YF_TICKER'])
+    #tickr = yf.Ticker('TILS.L')
+    # a = aapl.recommendations
+    # b = aapl.calendar
+    
+    try:
+        currency = tickr.info['currency']
+    except:
+        print('----------ERROR-------------')
+        """
+        Some need to be set manually, for example 3LTS is a leveraged ETF traded 
+        on the LSE but uses $ instead of £
+        """
+        if r['YF_TICKER'] == '3LTS.L':
+            currency = 'USD'
+        elif r['YF_TICKER'].find('.L') != -1:
+            currency = 'GBp' # Most UK stocks are in pence
+        
+    print(r['YF_TICKER'])
+    print(currency)
+        
+    if currency == 'GBp':
+        currency = 'GBP'
+        r['CURRENT MARKET VALUE'] = (float('{:.2f}'.format(c.get_rate(currency, 'GBP'))) * r['CURRENT PRICE'] * r['QUANTITY']) / 100
+        r['OG MARKET VALUE'] = (float('{:.2f}'.format(c.get_rate(currency, 'GBP'))) * r['PRICE'] * r['QUANTITY']) / 100
+        # r['CURRENT MARKET VALUE'] = c.convert(currency, 'GBP', r['CURRENT PRICE']*r['QUANTITY']) / 100
+        # r['OG MARKET VALUE'] = c.convert(currency, 'GBP', r['PRICE']*r['QUANTITY']) / 100
+    else:
+        #print(c.convert(currency, 'GBP', r['CURRENT PRICE']*r['QUANTITY']))
+        r['CURRENT MARKET VALUE'] = (float('{:.2f}'.format(c.get_rate(currency, 'GBP'))) * r['CURRENT PRICE'] * r['QUANTITY'])
+        r['OG MARKET VALUE'] = (float('{:.2f}'.format(c.get_rate(currency, 'GBP'))) * r['PRICE'] * r['QUANTITY'])
+        # r['CURRENT MARKET VALUE'] = c.convert(currency, 'GBP', r['CURRENT PRICE']*r['QUANTITY'])
+        # r['OG MARKET VALUE'] = c.convert(currency, 'GBP', r['PRICE']*r['QUANTITY'])
+    return r
+
+#c.convert('USD', 'GBP', 117.5*18)
+#float('{:.2f}'.format(c.get_rate('GBP', 'GBP')))
+
+# holdings = holdings.apply(convert_to_gbp, axis=1)
+
+# floating_total = sum(holdings['CURRENT MARKET VALUE']) - sum(holdings['OG MARKET VALUE'])
+
+# holdings['diff'] = holdings['CURRENT MARKET VALUE'] - holdings['OG MARKET VALUE']
+
+# floating_profit = sum(holdings['diff'][holdings['diff'] > 0])
+# floating_loss = sum(holdings['diff'][holdings['diff'] < 0])
 
 def fig_layout(fig):
     # fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
@@ -46,39 +116,42 @@ def fig_layout(fig):
     #                   )
     return fig
 
-def current_price(r):
-    r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
-    return r
-
-def get_holdings():
-    holdings = pd.read_sql_table("holdings", con=engine, index_col='index')
-    holdings = holdings.apply(current_price, axis=1)
-    return holdings
-
 def day_treemap():
     # 1 Day Performance
     holdings = get_holdings()
     holdings['PCT'] = (holdings['CURRENT PRICE'] - holdings['PREV_CLOSE']) / abs(holdings['PREV_CLOSE']) *100
+        
+    # Yahoo finance pulls wrong data, should be fixed later
+    holdings = holdings[holdings['Ticker'] != 'IITU']
+    holdings = holdings[holdings['Ticker'] != '3CRM']
+    
     fig = px.treemap(holdings, path=['Sector', 'Industry', 'Ticker'], values='MARKET VALUE', color='PCT',
-                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0)
+                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0, range_color=[-10,10])
+        
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)'
+                      )
+    fig.update_layout(coloraxis_showscale=False)
+    #plot(fig)
     return fig_layout(fig)
 
 def return_treemap():
     holdings = get_holdings()
+    holdings.dropna(axis=0, inplace=True)
     holdings['Ri'] = (holdings['CURRENT PRICE'] - holdings['PRICE']) / abs(holdings['PRICE']) *100 # May be slightly off due to fx
     fig = px.treemap(holdings, path=['Sector', 'Industry', 'Ticker'], values='MARKET VALUE', color='Ri',
-                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0)
+                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0, range_color=[-20,20])
     
     fig.update_layout(    
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        # legend_title="Legend Title",
-        # font=dict(
-        #     color="White"
-        # ),
-        showlegend=False,
     )
+    
+    #https://plotly.com/python/colorscales/#setting-the-midpoint-of-a-color-range-for-a-diverging-color-scale
+    fig.update_layout(coloraxis_showscale=False)
+    #plot(fig)
     return fig
 
 def chart(ticker):
@@ -172,11 +245,10 @@ def chart(ticker):
     
     return fig
 
-
 def performance_chart(ticker):
 
-    all_212_equities = pd.read_csv('stock_list.csv')
-    
+    all_212_equities = pd.read_sql_table("equities", con=engine, index_col='index')
+
     market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
     
     buys, sells = get_buy_sell(ticker) 
@@ -228,23 +300,31 @@ def performance_chart(ticker):
     buys['Target'] = buys['Target'].astype(str)
     
     fig1 = px.scatter(sells, x='Trading day', y='Execution_Price', color='Target')
-    fig1.data[0].marker =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig1.data[1].marker =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig1.data[0].name = 'Successful Sell Point'
-    fig1.data[1].name = 'Unsuccessful Sell Point'
-    fig.add_trace(fig1.data[0])
-    fig.add_trace(fig1.data[1])
+    
+    for x in fig1.data:
+        if x['legendgroup'] == '1':
+            x['marker'] =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+            x['name'] = 'Successful Sell Point'
+            fig.add_trace(x)
+        elif x['legendgroup'] == '0':
+            x['marker'] =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+            x['name'] = 'Unsuccessful Sell Point'
+            fig.add_trace(x)
     
     fig2 = px.scatter(buys, x='Trading day', y='Execution_Price', color='Target')
     #fig2.update_traces(marker=dict(color='blue'))
     #fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
-    fig2.data[0].marker =  {'color':'#3D9970', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig2.data[1].marker =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-    fig2.data[0].name = 'Successful Buy Point'
-    fig2.data[1].name = 'Unsuccessful Buy Point'
-    fig.add_trace(fig2.data[0])
-    fig.add_trace(fig2.data[1])
     
+    for x in fig2.data:
+        if x['legendgroup'] == '1':
+            x['marker'] =  {'color':'#3D9970', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+            x['name'] = 'Successful Buy Point'
+            fig.add_trace(x)
+        elif x['legendgroup'] == '0':
+            x['marker'] =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+            x['name'] = 'Unsuccessful Buy Point'
+            fig.add_trace(x)
+        
     fig.update_layout(hovermode="x unified", title=f'{ticker} Stock Graph', 
                       legend=dict(
                             yanchor="top",
@@ -254,6 +334,8 @@ def performance_chart(ticker):
                     ))
     
     return fig_layout(fig)
+
+# plot(performance_chart('PCPL'))
 
 # Monthly Returns and targets
 def goal_chart():
