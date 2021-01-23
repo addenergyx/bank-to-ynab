@@ -19,6 +19,8 @@ import re
 import os
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
 load_dotenv(verbose=True, override=True)
 
@@ -39,6 +41,23 @@ timestamp = date.today().strftime('%d-%m-%Y')
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
+
+## Google authentication
+
+gauth = GoogleAuth()
+#gauth.LocalWebserverAuth()
+gauth.LoadCredentialsFile("mycreds.txt")
+if gauth.credentials is None:
+    # Authenticate if they're not there
+    gauth.LocalWebserverAuth()
+elif gauth.access_token_expired:
+    # Refresh them if expired
+    gauth.Refresh()
+else:
+    # Initialize the saved creds
+    gauth.Authorize()
+gauth.SaveCredentialsFile("mycreds.txt")
+drive = GoogleDrive(gauth)
 
 ## Using Long table as it's more flexible for this dataset
 ## Improve: use database instead of csv
@@ -99,6 +118,19 @@ def get_last_update(update):
     last_update = datetime.strptime(match.group(), '%d/%m/%Y, %H:%M:%S').strftime('%d-%m-%Y %H:%M:%S')
     return last_update
 
+def upload_to_google_drive(filename):
+    fileList = drive.ListFile({'q': "'14Xi6xKvy8T0NnsbQGJipOVsjskBpwbsb' in parents and trashed=false"}).GetList()
+    
+    for file in fileList:
+        if file['title'] == filename:
+            file1 = drive.CreateFile({'id': file['id']})
+            file1.Trash()
+    
+    f = drive.CreateFile({'parents': [{'id': '14Xi6xKvy8T0NnsbQGJipOVsjskBpwbsb'}]}) 
+    f.SetContentFile(filename) 
+    f.Upload() 
+    f = None
+
 # Get date from string
 update = driver.find_element_by_class_name("pt-footer-notice").text
 last_update = get_last_update(update)
@@ -152,6 +184,8 @@ complete_df.to_csv(f'leaderboard-{timestamp}.csv', index=False)
 
 complete_df.to_sql('leaderboard', engine, if_exists='replace')
 
+upload_to_google_drive(f'leaderboard-{timestamp}.csv')
+
 ## Position in dataset
 # complete_df = complete_df.sort_values('User_count', ascending=False)
 ## Reset positions, use list() so it's int instead of string
@@ -160,6 +194,7 @@ complete_df.to_sql('leaderboard', engine, if_exists='replace')
 ## ------------------------- Daily Risers/Fallers ------------------------- ##
 
 def user_data(xpath, file, historical_df):
+    
     daily = []
     
     driver.find_element_by_xpath(xpath).click()
@@ -222,6 +257,8 @@ def user_data(xpath, file, historical_df):
     complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
     complete_df.to_csv(file, index=False)
     
+    upload_to_google_drive(file)
+
     return complete_df
 
 risers_df = user_data("/html/body/div[1]/section[2]/div/div/div[1]/div/div[2]", f'risers-{timestamp}.csv', risers)
