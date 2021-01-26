@@ -5,22 +5,12 @@ Created on Sat Jan 16 11:48:24 2021
 @author: david
 """
 
-import imaplib
 import os
-import email
-from bs4 import BeautifulSoup
 import pandas as pd
 from dotenv import load_dotenv
-import stockstats
-import collections
 from pandas_datareader import data as web
-import smtplib, ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from prettytable import PrettyTable
-import re
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import plotly.express as px
 from plotly.offline import plot
 import plotly.graph_objects as go
@@ -29,7 +19,8 @@ from sqlalchemy import create_engine
 from pytrends import dailydata
 from helpers import get_buy_sell, get_yf_symbol, time_frame_returns
 from forex_python.converter import CurrencyRates
-from currency_converter import CurrencyConverter
+from plotly.subplots import make_subplots
+from iexfinance.stocks import Stock
 
 load_dotenv(verbose=True, override=True)
 
@@ -38,12 +29,45 @@ engine = create_engine(db_URI)
 c = CurrencyRates()
 
 def current_price(r):
-    #print(r['YF_TICKER'])
-    try:
-        r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
-    except:
-        r['CURRENT PRICE'] = float('NaN')
-    return r
+    #print(r)
+    if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30):
+        if r['YF_TICKER'].find('.') == -1:
+            try:
+                # Use IEX, only works with US (NASDAQ/NYSE) Stocks
+                tickr = Stock(r['YF_TICKER']) 
+                #tickr = Stock('TSLA')
+                data = tickr.get_quote()
+                # a = tickr.get_price_target()
+                # b = tickr.get_estimates()
+                latestPrice = data['latestPrice'].values[0]
+                extendedPrice = data['extendedPrice'].values[0]
+                #iexRealtimePrice = data['iexRealtimePrice'].values[0]
+                
+                # Only works with non nasdaq stocks due to new regulations 
+                #https://intercom.help/iexcloud/en/articles/3210401-how-do-i-get-nasdaq-listed-stock-data-utp-data-on-iex-cloud
+                r['CURRENT PRICE'] = latestPrice if extendedPrice is None else extendedPrice
+                return r
+
+            except: 
+                try:
+                    r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+                    return r
+                except:
+                    r['CURRENT PRICE'] = float('NaN')
+                    return r
+        else:
+            try:
+                r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+                return r
+            except:
+                r['CURRENT PRICE'] = float('NaN')
+                return r
+    else:
+        try:
+            r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+        except:
+            r['CURRENT PRICE'] = float('NaN')
+        return r
 
 def get_holdings():
     holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
@@ -51,7 +75,7 @@ def get_holdings():
     holdings.dropna(axis=0, inplace=True)
     
     # Recent ticker change due to merger, Yahoo finance pulls wrong data, should be fixed later
-    holdings = holdings[holdings['Ticker'] != 'UWMC']
+    #holdings = holdings[holdings['Ticker'] != 'UWMC']
     
     holdings['PREV_CLOSE'] = holdings['PREV_CLOSE'].astype('float')
     return holdings
@@ -120,19 +144,25 @@ def day_treemap():
     # 1 Day Performance
     holdings = get_holdings()
     holdings['PCT'] = (holdings['CURRENT PRICE'] - holdings['PREV_CLOSE']) / abs(holdings['PREV_CLOSE']) *100
-        
+    holdings['PCT'] = holdings['PCT'].round(2)    
+    
     # Yahoo finance pulls wrong data, should be fixed later
     holdings = holdings[holdings['Ticker'] != 'IITU']
     holdings = holdings[holdings['Ticker'] != '3CRM']
     
     fig = px.treemap(holdings, path=['Sector', 'Industry', 'Ticker'], values='MARKET VALUE', color='PCT',
-                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0, range_color=[-10,10])
+                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0, range_color=[-10,10], 
+                     #hover_data=['Ticker', 'MARKET VALUE', 'PCT']
+                     )
         
     fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
                         paper_bgcolor='rgba(0,0,0,0)',
                         plot_bgcolor='rgba(0,0,0,0)'
                       )
     fig.update_layout(coloraxis_showscale=False)
+    
+    fig.data[0].hovertemplate = '%{label}<br>%{color}%<br>£%{value}'
+    #fig.data[0].textinfo = 'label+text+percent entry+percent parent+value'
     #plot(fig)
     return fig_layout(fig)
 
@@ -151,6 +181,7 @@ def return_treemap():
     
     #https://plotly.com/python/colorscales/#setting-the-midpoint-of-a-color-range-for-a-diverging-color-scale
     fig.update_layout(coloraxis_showscale=False)
+    fig.data[0].hovertemplate = '%{label}<br>%{color}%<br>£%{value}'
     #plot(fig)
     return fig
 
@@ -247,17 +278,19 @@ def chart(ticker):
 
 def performance_chart(ticker):
 
+    #ticker = 'TSLA'
+    
     all_212_equities = pd.read_sql_table("equities", con=engine, index_col='index')
 
     market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
-    
+        
     buys, sells = get_buy_sell(ticker) 
     
     start = datetime(2020, 2, 7)
     end = datetime.now()    
     
     yf_symbol = get_yf_symbol(market, ticker)   
-    
+        
     index = web.DataReader(yf_symbol, 'yahoo', start, end)
     index = index.reset_index()
     
@@ -287,12 +320,21 @@ def performance_chart(ticker):
     
     ## Discrete color graph
     
+    main_fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
     fig = go.Figure(data=[go.Candlestick(x=index['Date'],
                     open=index['Open'],
                     high=index['High'],
                     low=index['Low'],
                     close=index['Adj Close'],
                     name='Stock')])
+    
+    # fig = go.Candlestick(x=index['Date'],
+    #             open=index['Open'],
+    #             high=index['High'],
+    #             low=index['Low'],
+    #             close=index['Adj Close'],
+    #             name='Stock')
     
     # Must be a string for plotly to interpret numeric values as a discrete value
     # https://plotly.com/python/discrete-color/
@@ -324,16 +366,35 @@ def performance_chart(ticker):
             x['marker'] =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
             x['name'] = 'Unsuccessful Buy Point'
             fig.add_trace(x)
-        
-    fig.update_layout(hovermode="x unified", title=f'{ticker} Stock Graph', 
-                      legend=dict(
-                            yanchor="top",
-                            y=0.99,
-                            xanchor="left",
-                            x=0.01
-                    ))
     
-    return fig_layout(fig)
+    for x in range(len(fig.data)):
+        main_fig.add_trace(fig.data[x], secondary_y=True)
+    
+    # include a go.Bar trace for volumes
+    volume_fig = go.Figure(go.Bar(x=index['Date'], y=index['Volume'], name='Volume'))
+    volume_fig.update_traces(marker_color='rgb(158,202,225)', opacity=0.6)
+    
+    main_fig.add_trace(volume_fig.data[0], secondary_y=False)
+    
+    main_fig.update_layout(hovermode="x unified", title=f'{ticker} Stock Graph', 
+                    #   legend=dict(
+                    #         yanchor="top",
+                    #         y=0.99,
+                    #         xanchor="left",
+                    #         x=0.01
+                    # )
+                    showlegend=False
+                    )
+    
+    main_fig.layout.yaxis1.showgrid=False
+
+    #plot(main_fig)
+    
+    # count = buys['Target'].value_counts().add(sells['Target'].value_counts(),fill_value=0)
+    # percentage = count[1]/count.sum() *100
+    # percentage = '{:.2f}'.format(percentage)
+    
+    return fig_layout(main_fig) #, percentage
 
 # plot(performance_chart('PCPL'))
 
@@ -385,9 +446,36 @@ def period_chart(time='M'):
     else:
         timeframe_returns_df['Date'] = timeframe_returns_df['Date'].dt.strftime('%d-%m-%Y')
 
-    fig = px.bar(timeframe_returns_df, x='Date', y='Returns', color='Date', title='Returns')
+    #fig = px.bar(timeframe_returns_df, x='Date', y='Returns', color='Date', title='Returns')
+    #fig = px.line(timeframe_returns_df, x='Date', y='Returns', title='Returns')
+    fig = go.Figure(go.Scatter(x=timeframe_returns_df['Date'], y=timeframe_returns_df['Returns'],
+                        mode='lines',
+                        name='Returns',
+                        line = {'color':'#6502C0', 'shape': 'spline', 'smoothing': 1},
+                        fill='tozeroy',
+                        ))
+    
+    fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        hovermode='x',
+                        xaxis={    
+                            'showgrid': False, # thin lines in the background
+                            'zeroline': False, # thick line at x=0
+                            #'visible': False,  # numbers below
+                            #'tickmode':'linear',
+                        },                                                
+                        yaxis={    
+                            'showgrid': False,
+                            'zeroline': False,
+                            #'visible': False,
+                        },
+                      )
+    plot(fig)
 
     return fig_layout(fig)
+
+#period_chart()
 
 def profit_loss_chart():
     # P/L
