@@ -10,21 +10,17 @@ import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
-import dash_daq as daq
-from dash.dependencies import Input, Output, State
+#import dash_daq as daq
+from dash.dependencies import Input, Output
 import plotly.graph_objs as go
-from dash_extensions.callback import DashCallbackBlueprint
-import plotly.express as px
-from random import randint
-import dash_table
 from visuals import *
-from helpers import get_portfolio
 #performance_chart, ml_model, period_chart, goal_chart, profit_loss_chart, cumsum_chart, dividend_chart, return_treemap, convert_to_gbp, get_holdings
 from components import Fab
 from server import server
 import os
 from sqlalchemy import create_engine
-from live_portfolio import live_portfolio
+from jobs import updates
+from newsapi import NewsApiClient
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
@@ -77,7 +73,35 @@ app.index_string = '''
 </html>
 '''
 
-portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day'])
+portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
+equities = pd.read_sql_table("equities", con=engine, index_col='index')
+
+# def update_news(ticker):
+#     # Init
+#     newsapi = NewsApiClient(api_key=os.getenv('NEWS_API_KEY'))
+    
+#     # /v2/top-headlines
+#     top_headlines = newsapi.get_top_headlines(q=ticker,
+#                                               #sources='google-news',
+#                                               language='en',
+#                                               #country='gb'
+#                                               )
+    
+#     articles = top_headlines['articles']
+    
+#     titles = []
+#     urls = []
+#     for a in articles:
+#         titles.append(a['title'])
+#         urls.append(a['url'])
+    
+#     d = {'Title':titles,'Url':urls}
+    
+#     news_df = pd.DataFrame(d)
+
+#     return news_df
+
+# df = update_news('BFT')
 
 app.title = 'Investments'
 
@@ -120,7 +144,7 @@ stats_card = [
                         html.P("This Month's Opening Balance"),
                         html.Strong(html.P(id='monthly-repayment', className='result')),
                         html.P('Total Realised P/L'),
-                        html.Strong(html.P(id='total-repayable', className='result')),
+                        html.Strong(html.P(id='total-profit', className='result')),
                         html.P("This Month's Realised P/L"),
                         html.Strong(html.P(id='monthly-profit', className='result')),
                         # html.P('Floating P/L'),
@@ -222,8 +246,27 @@ def build_card(title, colour):
 
 app.config.suppress_callback_exceptions = True
 
-tickers = [{'label':str(x), 'value': x} for x in set(portfolio['Ticker Symbol'])]
-charts = [{'label':str(x), 'value': x} for x in ['Goals', 'Monthly', 'Dividends', 'Cumulative', 'Profit/Loss', 'Daily', 'Weekly', 'Quarterly', 'Fiscal Year']]
+def company(x):
+    try:
+        company = equities[equities['INSTRUMENT'] == x]['COMPANY'].values[0]
+        dic = {'label': f'{company} ({x})', 'value': x}
+    except:
+        dic = {'label': str(x), 'value': x}
+    return dic
+
+tickers = [company(x) for x in portfolio['Ticker Symbol'].drop_duplicates()]
+
+# tickers = []
+# for x in portfolio['Ticker Symbol'].drop_duplicates():
+#     try:
+#         company = equities[equities['INSTRUMENT'] == x]['COMPANY'].values[0]
+#         tickers.append({'label': f'{company} ({x})', 'value': x})
+#     except:
+#         tickers.append({'label': str(x), 'value': x})
+
+#tickers = [{'label':str(x), 'value': x} for x in portfolio['Ticker Symbol'].drop_duplicates()]
+
+charts = [{'label':str(x), 'value': x} for x in ['Goals', 'Monthly', 'Dividends', 'Cumulative', 'Profit/Loss', 'Daily', 'Weekly', 'Yearly', 'Quarterly', 'Fiscal Year']]
 maps = [{'label':str(x), 'value': x} for x in ['Day', 'Portfolio']]
 
 body = html.Div(
@@ -271,7 +314,7 @@ body = html.Div(
                                   dcc.Dropdown(
                                     id='ticker-dropdown',
                                     options=tickers,
-                                    value='TSLA',
+                                    value=tickers[0]['value'],
                                     searchable=True,
                                     style={'margin-top':'50px'}
                                   ),
@@ -355,8 +398,9 @@ body = html.Div(
                                    ], className = 'data-row'
                                ),
                                                     
-                               dcc.Interval(id="weight-interval", n_intervals=0, interval=60000),
-                               dcc.Interval(id="map-interval", n_intervals=0, interval=20000),
+                               dcc.Interval(id="stats-interval", n_intervals=0, interval=60000),
+                               dcc.Interval(id="map-interval", n_intervals=0, interval=10000),
+                               dcc.Interval(id="dropdown-interval", n_intervals=0, interval=7200000),
                                html.Div(id='container-button-basic', hidden=True)
                               
                            ], id='main-panel', width=12, lg=9
@@ -364,23 +408,23 @@ body = html.Div(
                 ], no_gutters=True),
              ])
 
-@app.callback([Output("monthly-repayment", "children"), Output("total-repayable", "children"), 
+@app.callback([Output("monthly-repayment", "children"), Output("total-profit", "children"), 
                 #Output("total-interest", "children"),  
                 Output("monthly-profit", "children"), Output("monthly-profit", "style")], 
-              [Input("weight-interval", "n_intervals")])
+              [Input("stats-interval", "n_intervals")])
 def event_cb(data):
     
     summary_df = pd.read_sql_table("summary", con=engine, index_col='index')
-    #monthly = pd.read_csv('monthly returns.csv')
     
     balance = summary_df['Closing balance'].iloc[-2]
     balance = "{:.2f}".format(round(balance, 2))
-    month = round(summary_df['Returns'].iloc[-1], 2)
-    profit = round(summary_df['Returns'].cumsum().iloc[-1], 2)
+    month_profit = round(summary_df['Returns'].iloc[-1], 2)
+    total_profit = "{:.2f}".format(round(summary_df['Returns'].cumsum().iloc[-1], 2))
     
-    style = {'color': 'green'} if profit > 0 else {'color': 'red'}
+    style = {'color': 'green'} if month_profit > 0 else {'color': 'red'}
+    month = f'£{"{:.2f}".format(month_profit)}' if month_profit > 0 else f'-£{"{:.2f}".format(abs(month_profit))}'
     
-    return f'£{balance}', f'£{profit}', f'£{month}', style
+    return f'£{balance}', f'£{total_profit}', f'{month}', style
 
 # @app.callback(Output("floats", "children"),
 #               [Input("weight-interval", "n_intervals")])
@@ -403,17 +447,29 @@ def update_output(n_clicks):
     print(n_clicks)
     if n_clicks is None:
         return ''
-    live_portfolio()
+    # live_portfolio()
+    updates()
     return ''
 
-@app.callback(Output('full-data-card','children'), 
-              [Input("weight-interval", "n_intervals")])
-def event_s(data):
-    portfolio = portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
+@app.callback(
+    [Output('ticker-dropdown', 'options'), Output('full-data-card','children')],
+    [Input('dropdown-interval', 'n_intervals')])
+def update_tickers(n_clicks):
     
+    portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
+    tickers = [company(x) for x in portfolio['Ticker Symbol'].drop_duplicates()]
     portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
+
+    return tickers, build_table(portfolio)
+
+# @app.callback(Output('full-data-card','children'), 
+#               [Input("dropdown-interval", "n_intervals")])
+# def event_s(data):
+#     portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
     
-    return build_table(portfolio)
+#     portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
+    
+#     return build_table(portfolio)
     
 @app.callback(Output('graphy','figure'), 
               [Input("ticker-dropdown", "value")])
@@ -438,10 +494,12 @@ def event_b(chart):
            'Profit/Loss' : profit_loss_chart,
            'Daily' : period_chart,
            'Weekly' : period_chart,
+           'Yearly': period_chart,
            'Quarterly' : period_chart,
            'Fiscal Year': period_chart,
     }
-        
+    
+    # Seperated from options dict because running all functions takes time
     if chart == 'Monthly':
         param = 'M'
         return options[chart](param)
@@ -450,6 +508,9 @@ def event_b(chart):
         return options[chart](param)
     elif chart == 'Weekly':
         param = 'W'
+        return options[chart](param)
+    elif chart == 'Yearly':
+        param = 'Y'
         return options[chart](param)
     elif chart == 'Quarterly':
         param = 'Q'
@@ -520,7 +581,7 @@ data that was generated when the Dash app was first initialised
 app.layout = Homepage()
 
 if __name__ == '__main__':
-    app.run_server(debug=True, use_reloader=False)
+    app.run_server(debug=True, use_reloader=False) # https://community.plotly.com/t/keep-updating-redrawing-graph-while-function-runs/8744
     #app.run_server()
 
 
