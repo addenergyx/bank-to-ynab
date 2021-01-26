@@ -35,8 +35,9 @@ engine = create_engine(db_URI)
 
 # ------------------------------------------------           
 #
-# Calculates total portfolio returns and individual stock return
+# Calculates total portfolio returns and individual stock returns
 # Trading212 currently doesn't show total returns of individual stocks
+# Averages are in GBP
 #
 # ------------------------------------------------
 
@@ -262,7 +263,7 @@ def returns():
     returns_df.to_sql('returns', engine, if_exists='replace')
     holdings_df.to_sql('holdinigs', engine, if_exists='replace')
     
-returns()
+#returns()
 
 
 
