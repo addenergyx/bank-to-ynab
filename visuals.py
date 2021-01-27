@@ -30,7 +30,7 @@ c = CurrencyRates()
 
 def current_price(r):
     #print(r)
-    if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30):
+    if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
         if r['YF_TICKER'].find('.') == -1:
             try:
                 # Use IEX, only works with US (NASDAQ/NYSE) Stocks
@@ -50,21 +50,21 @@ def current_price(r):
 
             except: 
                 try:
-                    r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+                    r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m', progress=False)['Close'].values[0]
                     return r
                 except:
                     r['CURRENT PRICE'] = float('NaN')
                     return r
         else:
             try:
-                r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+                r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m', progress=False)['Close'].values[0]
                 return r
             except:
                 r['CURRENT PRICE'] = float('NaN')
                 return r
     else:
         try:
-            r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m')['Close'].values[0]
+            r['CURRENT PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m', progress=False)['Close'].values[0]
         except:
             r['CURRENT PRICE'] = float('NaN')
         return r
@@ -78,6 +78,7 @@ def get_holdings():
     #holdings = holdings[holdings['Ticker'] != 'UWMC']
     
     holdings['PREV_CLOSE'] = holdings['PREV_CLOSE'].astype('float')
+    #print('got holdings')
     return holdings
 
 # holdings = get_holdings()
@@ -151,20 +152,25 @@ def day_treemap():
     holdings = holdings[holdings['Ticker'] != '3CRM']
     
     fig = px.treemap(holdings, path=['Sector', 'Industry', 'Ticker'], values='MARKET VALUE', color='PCT',
-                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0, range_color=[-10,10], 
+                     color_continuous_scale='RdYlGn', color_continuous_midpoint=0, range_color=[-20,20], 
                      #hover_data=['Ticker', 'MARKET VALUE', 'PCT']
                      )
         
     fig.update_layout(margin=dict(l=0, r=0, t=0, b=0),
                         paper_bgcolor='rgba(0,0,0,0)',
-                        plot_bgcolor='rgba(0,0,0,0)'
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        transition={
+                            'duration': 500,
+                            'easing': 'cubic-in-out',
+                        }
                       )
     fig.update_layout(coloraxis_showscale=False)
-    
     fig.data[0].hovertemplate = '%{label}<br>%{color}%<br>£%{value}'
+    
     #fig.data[0].textinfo = 'label+text+percent entry+percent parent+value'
     #plot(fig)
-    return fig_layout(fig)
+    print('launch day map')
+    return fig
 
 def return_treemap():
     holdings = get_holdings()
@@ -182,6 +188,7 @@ def return_treemap():
     #https://plotly.com/python/colorscales/#setting-the-midpoint-of-a-color-range-for-a-diverging-color-scale
     fig.update_layout(coloraxis_showscale=False)
     fig.data[0].hovertemplate = '%{label}<br>%{color}%<br>£%{value}'
+    print('launch returns map')
     #plot(fig)
     return fig
 
@@ -526,21 +533,6 @@ def avg_stock_split_adjustment(r):
         r.Average = r.Average/split
     
     return r
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def ml_model():
