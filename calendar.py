@@ -181,6 +181,7 @@ for key, value in dates.items():
     # else:
     #     print(f'{key} already exists')
 
+print('')
 sys.stdout = backup
 f.close()  
     
