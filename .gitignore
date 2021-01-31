@@ -8,3 +8,6 @@ untitled*.py
 *.pickle
 *.html
 chromedriver.exe
+*.gshortcut
+hotlist backups/desktop.ini
+*.log
