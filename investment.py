@@ -64,6 +64,115 @@ mail = imaplib.IMAP4_SSL(SMTP_SERVER)
 
 mail.login(email_user, email_pass)
 
+mail.select('deposits')
+
+status, mailbox = mail.search(None, 'ALL')
+
+total = 0
+
+mailbox_list = mailbox[0].split()
+
+#item = mailbox_list[0]
+
+for item in mailbox_list:
+
+# for num in data[0].split():
+    status, body = mail.fetch(item, '(RFC822)')
+    email_msg = body[0][1]
+
+    raw_email = email_msg.decode('utf-8')
+
+    email_message = email.message_from_bytes(email_msg)
+
+    counter = 1
+    for part in email_message.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        filename = part.get_filename()
+        if not filename:
+            ext = '.html'
+            filename = 'msg-part%08d%s' %(counter, ext)
+        
+        counter += 1
+        
+        content_type = part.get_content_type()
+        # print(content_type)
+        
+        if "html" in content_type:
+            html_ = part.get_payload()
+            soup = BeautifulSoup(html_, 'html.parser')
+            
+            #a = soup.find("strong").string
+
+            table = soup.find_all('table')
+
+            a = pd.read_html(str(table))[2][1][0]
+            
+            a = a.strip('GBP ')
+            
+            import re
+            pattern = re.compile(r'\s+')
+            a = re.sub(pattern, '', a)
+            print(a)
+            total += float(a)
+
+# (9.2 from free shares, 85.2 from rbg rights issue)
+# Add this to match T212 total
+deposits = total + 94.4 
+
+mail.select('withdraws')
+
+status, mailbox = mail.search(None, 'ALL')
+
+total = 0
+
+mailbox_list = mailbox[0].split()
+
+item = mailbox_list[0]
+
+for item in mailbox_list:
+
+# for num in data[0].split():
+    status, body = mail.fetch(item, '(RFC822)')
+    email_msg = body[0][1]
+
+    raw_email = email_msg.decode('utf-8')
+
+    email_message = email.message_from_bytes(email_msg)
+
+    counter = 1
+    for part in email_message.walk():
+        if part.get_content_maintype() == "multipart":
+            continue
+        filename = part.get_filename()
+        if not filename:
+            ext = '.html'
+            filename = 'msg-part%08d%s' %(counter, ext)
+        
+        counter += 1
+        
+        content_type = part.get_content_type()
+        # print(content_type)
+        
+        if "html" in content_type:
+            html_ = part.get_payload()
+            soup = BeautifulSoup(html_, 'html.parser')
+            
+            a = soup.find("span").string
+            
+            a = a.strip('GBP ')
+            
+            import re
+            pattern = re.compile(r'\s+')
+            a = re.sub(pattern, '', a)
+            print(a)
+            total += float(a)
+            
+#Add 85.2 for rbg rights issue to match T212
+withdraws = total + 85.2
+
+capital = round(deposits - withdraws, 2)
+
 mail.select('investing')
 
 status, mailbox = mail.search(None, 'ALL')
@@ -192,7 +301,7 @@ summary_df = get_summary()
 
 now = datetime.now()
 
-summary_df.loc[len(summary_df)] = [f'{now.year}-{now.month}' , '-', summary_df.loc[len(summary_df)-1]['Closing balance'], '-']
+summary_df.loc[len(summary_df)] = [f"{now.year}-{now.strftime('%m')}" , float('NaN'), summary_df.loc[len(summary_df)-1]['Closing balance'], float('NaN')]
  
 summary_df['Target'] = summary_df['Opening balance'] * .05 # Aim for 5% returns a month
 
@@ -281,7 +390,7 @@ watchlist = returnNotMatches(all_holdings['Ticker Symbol'].tolist(), watchlist)
 total_returns = 0
 
 holdings_dict = collections.defaultdict(dict) # Allows for nesting easily
-returns_dict = {}
+returns_dict = collections.defaultdict(dict)
 
 averages = pd.DataFrame(columns=['Trading day', 'Ticker Symbol', 'Average', 'Exchange rate'])
 
@@ -344,18 +453,45 @@ for symbol in all_holdings['Ticker Symbol'].tolist():
                     
                     if symbol in holdings_dict:
                         # returns_dict[symbol] += total_profit
+                        
+                        if total_profit > 0:
+                            holdings_dict[symbol]['Gains'] += total_profit
+                        else:
+                            holdings_dict[symbol]['Losses'] += total_profit
+                        
                         holdings_dict[symbol]['Gross Returns'] += total_profit
                         
                     else:
                         # returns_dict[symbol] = total_profit
+                        
+                        if total_profit > 0:
+                            holdings_dict[symbol]['Gains'] = total_profit
+                            holdings_dict[symbol]['Losses'] = 0
+                        else:
+                            holdings_dict[symbol]['Losses'] = total_profit
+                            holdings_dict[symbol]['Gains'] = 0
+                        
                         holdings_dict[symbol]['Gross Returns'] = total_profit
                                               
                     if d in returns_dict:    
-                        returns_dict[d] += total_profit
+                        returns_dict[d]['Returns'] += total_profit
+                        
+                        if total_profit > 0:
+                            returns_dict[d]['Gains'] += total_profit
+                        else:
+                            returns_dict[d]['Losses'] += total_profit
+                        
                     else:
-                        returns_dict[d] = total_profit
+                        returns_dict[d]['Returns'] = total_profit
+                        
+                        if total_profit > 0:
+                            returns_dict[d]['Gains'] = total_profit
+                            returns_dict[d]['Losses'] = 0
+                        else:
+                            returns_dict[d]['Losses'] = total_profit
+                            returns_dict[d]['Gains'] = 0
                                             
-                    print('-----------------')         
+                    #print('-----------------')         
                     break #Use break because don't care about orders after sell order
                 
                 else:
@@ -380,8 +516,11 @@ print(f'Gross Returns: {total_returns}')
 net_returns = total_returns - trades['Charges and fees'].sum()
 print(f'Net Returns: {net_returns}')
 
+holdings_df = pd.DataFrame.from_dict(holdings_dict, orient='index').reset_index().rename(columns={'index':'Ticker Symbol'})
+returns_df = pd.DataFrame.from_dict(returns_dict, orient='index').reset_index().rename(columns={'index':'Date'})
+
 ## Returns period
-daily_returns_df = pd.DataFrame(returns_dict.items(), columns=['Date', 'Returns'])
+daily_returns_df = returns_df.copy() #[['Date', 'Gross']]
 daily_returns_df['Date']= pd.to_datetime(daily_returns_df['Date'], format='%d-%m-%Y') 
 
 # Fill missing days
@@ -389,6 +528,22 @@ idx = pd.bdate_range(min(daily_returns_df.Date), max(daily_returns_df.Date))
 daily_returns_df.set_index('Date', inplace=True)
 #s.index = pd.DatetimeIndex(s.index)
 daily_returns_df = daily_returns_df.reindex(idx, fill_value=0).reset_index().rename(columns={'index':'Date'})
+
+# Yearly Returns
+period = daily_returns_df.Date.dt.to_period("Y")
+g = daily_returns_df.groupby(period)
+yearly_returns_df = g.sum()
+
+# Quaterly Returns
+period = daily_returns_df.Date.dt.to_period("Q")
+g = daily_returns_df.groupby(period)
+quaterly_returns_df = g.sum()
+
+## https://stackoverflow.com/questions/35339139/where-is-the-documentation-on-pandas-freq-tags
+# Tax year
+period = daily_returns_df.Date.dt.to_period("A-APR")
+g = daily_returns_df.groupby(period)
+tax_year_returns_df = g.sum()
 
 # Monthly Returns
 period = daily_returns_df.Date.dt.to_period("M")
@@ -462,8 +617,8 @@ def generate_holdings(all_holdings):
                             ## However average stays the same
                             c -= s*average
               
-            holdings_dict[symbol]['Current Holdings'] = formatting(holdings)
-            holdings_dict[symbol]['Current Average'] = formatting(average)
+            holdings_dict[symbol]['Current Holdings'] = holdings #formatting(holdings)
+            holdings_dict[symbol]['Current Average'] = average #formatting(average)
                 
             print(f'Holdings Average: {holdings} @ {average}')            
 
@@ -529,6 +684,8 @@ def get_market(isin, symbol, old_symbol=''):
     ## As 212 doesn't provide the company name in the daily statement there is no way for me to link old tickers with the new one
     ## so will manually replace tickers here
     ## Preventing this in the future by saving all old tickers in a csv
+    
+    all_212_equities = pd.read_csv('stock_list.csv')
     
     if symbol == 'AO.':
         old_symbol = symbol
@@ -779,14 +936,25 @@ send_email(holdings_dict)
 monthly_returns_df.index = monthly_returns_df.index.strftime('%Y-%m')
 monthly_returns_df.reset_index(level=0, inplace=True)
 
-monthly_returns_df.to_csv('monthly returns.csv') 
+summary_df = summary_df.merge(monthly_returns_df, on='Date')
+
+year_count = pd.to_datetime(summary_df['Date'], errors='coerce').dt.year.value_counts()
+
+summary_df['House Goal'] = [float('NaN') for x in range(year_count.values[0])] + [1000 for x in range(year_count.values[1:].sum())]  
+summary_df['Minimum Goal'] = [100 for x in range(year_count.values[0])] + [200 for x in range(year_count.values[1:].sum())]
+
+summary_df.to_sql('summary', engine, if_exists='replace')
+
+monthly_returns_df.to_csv('monthly returns.csv')
+summary_df.to_csv('summary.csv')
 
 # Monthly Returns and targets
 fig = go.Figure(data=[
     go.Scatter(name='Target', x=summary_df['Date'], y=summary_df['Target']),
-    go.Scatter(name='Minimun Target', x=summary_df['Date'], y=[100 for x in range(len(summary_df['Date']))]),
+    go.Scatter(name='Minimum Target', x=summary_df['Date'], y=summary_df['Minimum Goal']),
     go.Bar(name='Return', x=monthly_returns_df['Date'], y=monthly_returns_df['Returns']),
     go.Scatter(name='Goal', x=summary_df['Date'], y=summary_df['Goal']),
+    go.Scatter(name='House Goal', x=summary_df['Date'], y=summary_df['House Goal']),
 ])
 
 # Change the bar mode
@@ -816,6 +984,19 @@ weekly_returns_df['Date'] = pd.to_datetime(weekly_returns_df['Date']) + timedelt
 
 # Weekly Returns
 fig = px.bar(weekly_returns_df, x='Date', y='Returns', color='Date', title='Weekly Returns')
+plot(fig)
+
+# P/L
+fig = go.Figure()
+fig.add_trace(go.Bar(x=monthly_returns_df['Date'], y=monthly_returns_df['Gains'],
+                marker_color='green',
+                name='Gains'))
+fig.add_trace(go.Bar(x=monthly_returns_df['Date'], y=monthly_returns_df['Losses'],
+                base=0,
+                marker_color='crimson',
+                name='Losses'
+                ))
+fig.update_layout(barmode='overlay')
 plot(fig)
 
 # Buy/Sell
@@ -1285,6 +1466,16 @@ def build_dataset(keyword, ticker, years):
     end = datetime.now()
     start = datetime(end.year - years, end.month, end.day)
     
+    # 1 year follows price trend better than 5 year 
+    # This  may be because the values are calculated on a scale from 0 to 100, 
+    # where 100 is the timeframe with the most popularity as a fraction of total searches in the given period of time, 
+    # a value of 50 indicates a time which is half as popular. 
+    # A value of 0 indicates a location where there was not enough data for this term. 
+    # Source →Google Trends.
+    
+    # For my hypothesis I feel 1 year is more accurate due to influx of new traders due to corona
+    # Old school traders rely on fundementals/technicals whereas newer trader trade on sentiment and momentum
+    
     ss = start.strftime('%Y-%m-%d')
     ee = end.strftime('%Y-%m-%d')
     
@@ -1355,87 +1546,87 @@ def build_dataset(keyword, ticker, years):
     
     return merged_df
 
-pytrend = TrendReq()
+# pytrend = TrendReq()
 
-keyword = 'tesla Stock'
+# keyword = 'tesla Stock'
 
-end = datetime.now()
-start = datetime(end.year - 5, end.month, end.day)
+# end = datetime.now()
+# start = datetime(end.year - 5, end.month, end.day)
 
-ss = start.strftime('%Y-%m-%d')
-ee = end.strftime('%Y-%m-%d')
+# ss = start.strftime('%Y-%m-%d')
+# ee = end.strftime('%Y-%m-%d')
 
-# 1 year follows price trend better than 5 year 
-# This  may be because the values are calculated on a scale from 0 to 100, 
-# where 100 is the timeframe with the most popularity as a fraction of total searches in the given period of time, 
-# a value of 50 indicates a time which is half as popular. 
-# A value of 0 indicates a location where there was not enough data for this term. 
-# Source →Google Trends.
+# # 1 year follows price trend better than 5 year 
+# # This  may be because the values are calculated on a scale from 0 to 100, 
+# # where 100 is the timeframe with the most popularity as a fraction of total searches in the given period of time, 
+# # a value of 50 indicates a time which is half as popular. 
+# # A value of 0 indicates a location where there was not enough data for this term. 
+# # Source →Google Trends.
 
-# For my hypothesis I feel 1 year is more accurate due to influx of new traders due to corona
-# Old school traders rely on fundementals/technicals whereas newer trader trade on sentiment and momentum
+# # For my hypothesis I feel 1 year is more accurate due to influx of new traders due to corona
+# # Old school traders rely on fundementals/technicals whereas newer trader trade on sentiment and momentum
 
-pytrend.build_payload(kw_list=[keyword], timeframe=f'{ss} {ee}')
-df = pytrend.interest_over_time() # Weekly data
-df.reset_index(level=0, inplace=True)
+# pytrend.build_payload(kw_list=[keyword], timeframe=f'{ss} {ee}')
+# df = pytrend.interest_over_time() # Weekly data
+# df.reset_index(level=0, inplace=True)
 
-df2 = dailydata.get_daily_data(keyword, start.year, start.month, end.year, end.month)
-df2.reset_index(level=0, inplace=True)
-df2 = df2.rename(columns={'date':'Date'})
+# df2 = dailydata.get_daily_data(keyword, start.year, start.month, end.year, end.month)
+# df2.reset_index(level=0, inplace=True)
+# df2 = df2.rename(columns={'date':'Date'})
 
-index = web.DataReader('tsla', 'yahoo', start, end)
-index = index.reset_index()
+# index = web.DataReader('tsla', 'yahoo', start, end)
+# index = index.reset_index()
 
-fig = make_subplots(specs=[[{"secondary_y": True}]])
+# fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-fig.add_trace(
-    go.Scatter(x=index['Date'], y=index['Adj Close'], name="Stock Price"),
-    secondary_y=False,
-)
+# fig.add_trace(
+#     go.Scatter(x=index['Date'], y=index['Adj Close'], name="Stock Price"),
+#     secondary_y=False,
+# )
 
-fig.add_trace(
-    go.Scatter(x=df['date'], y=df[keyword], name="Google Trends"),
-    secondary_y=True,
-)
+# fig.add_trace(
+#     go.Scatter(x=df['date'], y=df[keyword], name="Google Trends"),
+#     secondary_y=True,
+# )
 
-fig.update_layout(
-    title_text="Price vs Google trends"
-)
+# fig.update_layout(
+#     title_text="Price vs Google trends"
+# )
 
-fig.update_xaxes(title_text="Date")
-fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
-fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
+# fig.update_xaxes(title_text="Date")
+# fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
+# fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
 
-plot(fig)
+# plot(fig)
 
-merged_df = pd.merge(index, df2, on="Date")
+# merged_df = pd.merge(index, df2, on="Date")
 
-## calculate correlation coefficient value
-#print(merged_df['Adj Close'].corr(merged_df[f'{keyword}_unscaled']))
-print(merged_df['Adj Close'].corr(merged_df['scale']))
-print(index['Adj Close'].corr(df[keyword]))
+# ## calculate correlation coefficient value
+# #print(merged_df['Adj Close'].corr(merged_df[f'{keyword}_unscaled']))
+# print(merged_df['Adj Close'].corr(merged_df['scale']))
+# print(index['Adj Close'].corr(df[keyword]))
 
-fig = make_subplots(specs=[[{"secondary_y": True}]])
+# fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-fig.add_trace(
-    go.Scatter(x=merged_df['Date'], y=merged_df['Adj Close'], name="Stock Price"),
-    secondary_y=False,
-)
+# fig.add_trace(
+#     go.Scatter(x=merged_df['Date'], y=merged_df['Adj Close'], name="Stock Price"),
+#     secondary_y=False,
+# )
 
-fig.add_trace(
-    go.Scatter(x=merged_df['Date'], y=merged_df[f'{keyword}_unscaled'], name="Google Trends"),
-    secondary_y=True,
-)
+# fig.add_trace(
+#     go.Scatter(x=merged_df['Date'], y=merged_df[f'{keyword}_unscaled'], name="Google Trends"),
+#     secondary_y=True,
+# )
 
-fig.update_layout(
-    title_text="Price vs Google trends"
-)
+# fig.update_layout(
+#     title_text="Price vs Google trends"
+# )
 
-fig.update_xaxes(title_text="Date")
-fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
-fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
+# fig.update_xaxes(title_text="Date")
+# fig.update_yaxes(title_text="<b>Primary</b> Stock Price", secondary_y=False)
+# fig.update_yaxes(title_text="<b>Secondary</b> Popularity", secondary_y=True)
 
-plot(fig)
+# plot(fig)
 
 # fig = px.bar(df, x='date', y='tesla Stock')
 # plot(fig)
@@ -1456,7 +1647,7 @@ print(merged_df.isnull().sum())
 # Why use logarithmic returns for price prediction
 # https://youtu.be/dKBKNOn3gCE
 
-model_df = merged_df[['Date', 'Open', 'Adj Close', 'Volume', merged_df.filter(regex='_unscaled$').columns[0]]]
+model_df = merged_df[['Date', 'Adj Close', 'Open', 'Volume', merged_df.filter(regex='_unscaled$').columns[0]]]
 
 training_dataset = model_df[model_df['Date'] < datetime(2020, 11, 1)]
 test_data = model_df[model_df['Date'] >= datetime(2020, 11, 1)]
@@ -1464,7 +1655,7 @@ test_data = model_df[model_df['Date'] >= datetime(2020, 11, 1)]
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
-## Using normalisation as will be using sigmoid function as activation functionn of output layer
+## Using normalisation as will be using sigmoid function as activation function of output layer
 sc = MinMaxScaler()
 training_data = sc.fit_transform(training_dataset.drop(['Date'], axis=1))
 training_data.shape[0]
@@ -1473,7 +1664,6 @@ window = 30
 
 x_train = [training_data[i-window:i] for i in range(60, training_data.shape[0])]
 
-# Open stock price
 y_train = [training_data[i, 0] for i in range(60, training_data.shape[0])]
 
 x_train, y_train = np.array(x_train ),  np.array(y_train)
@@ -1546,7 +1736,7 @@ scale.min_, scale.scale_ = sc.min_[0], sc.scale_[0]
 y_pred = scale.inverse_transform(y_pred)
 y_test = test_data['Open']
 
-y_pred  = [x[0] for x in y_pred.tolist()]
+y_pred = [x[0] for x in y_pred.tolist()]
 
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=test_data['Date'], y=y_pred, name='Predicted Stock Price'))
@@ -1555,6 +1745,8 @@ fig.update_layout(title="Predicted vs Actual Stock Price", xaxis_title="Date", y
 plot(fig)
 
 test_dates = pd.Series([training_dataset['Date'].iloc[-1]]).append(test_data['Date'], ignore_index=True)
+
+## Appending last point of training set to test and pred for graph
 y_pred_graph =  [training_dataset['Open'].iloc[-1]] + y_pred
 y_test_graph = pd.Series([training_dataset['Open'].iloc[-1]]).append(y_test, ignore_index=True).tolist()
 
