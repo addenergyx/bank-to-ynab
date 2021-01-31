@@ -21,6 +21,7 @@ from helpers import get_buy_sell, get_yf_symbol, time_frame_returns
 from forex_python.converter import CurrencyRates
 from plotly.subplots import make_subplots
 from iexfinance.stocks import Stock
+from scraper import getPremarketChange, get_driver
 
 load_dotenv(verbose=True, override=True)
 
@@ -28,24 +29,33 @@ db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
 c = CurrencyRates()
 
+driver = get_driver(headless=True)
+driver.implicitly_wait(20)
+# driver.close()
+# driver.quit()
+
 def current_price(r):
     #print(r)
     if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
         if r['YF_TICKER'].find('.') == -1:
             try:
-                # Use IEX, only works with US (NASDAQ/NYSE) Stocks
+                # Use IEX, only works with US (NYSE) Stocks
                 tickr = Stock(r['YF_TICKER']) 
                 #tickr = Stock('TSLA')
                 data = tickr.get_quote()
-                # a = tickr.get_price_target()
-                # b = tickr.get_estimates()
-                latestPrice = data['latestPrice'].values[0]
-                extendedPrice = data['extendedPrice'].values[0]
-                #iexRealtimePrice = data['iexRealtimePrice'].values[0]
                 
-                # Only works with non nasdaq stocks due to new regulations 
-                #https://intercom.help/iexcloud/en/articles/3210401-how-do-i-get-nasdaq-listed-stock-data-utp-data-on-iex-cloud
-                r['CURRENT PRICE'] = latestPrice if extendedPrice is None else extendedPrice
+                if data['primaryExchange'].values[0].find('NASDAQ') == 0:
+                    r['CURRENT PRICE'] = getPremarketChange(r['YF_TICKER'], driver)
+                else:             
+                    # a = tickr.get_price_target()
+                    # b = tickr.get_estimates()
+                    latestPrice = data['latestPrice'].values[0]
+                    extendedPrice = data['extendedPrice'].values[0]
+                    #iexRealtimePrice = data['iexRealtimePrice'].values[0]
+                    
+                    # Only works with non nasdaq stocks due to new regulations 
+                    #https://intercom.help/iexcloud/en/articles/3210401-how-do-i-get-nasdaq-listed-stock-data-utp-data-on-iex-cloud
+                    r['CURRENT PRICE'] = latestPrice if extendedPrice is None else extendedPrice
                 return r
 
             except: 
@@ -71,7 +81,15 @@ def current_price(r):
 
 def get_holdings():
     holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+    
+    # driver = get_driver(#headless=True
+    #     )
+    # driver.implicitly_wait(20)
+    
     holdings = holdings.apply(current_price, axis=1)
+    # driver.close()
+    # driver.quit()
+    
     holdings.dropna(axis=0, inplace=True)
     
     # Recent ticker change due to merger, Yahoo finance pulls wrong data, should be fixed later
@@ -196,7 +214,6 @@ def chart(ticker):
     
     all_212_equities = pd.read_sql_table("equities", con=engine, index_col='index')
 
-    
     market = all_212_equities[all_212_equities['INSTRUMENT'] == ticker]['MARKET NAME'].values[0] 
     
     buys, sells = get_buy_sell(ticker)
@@ -285,7 +302,7 @@ def chart(ticker):
 
 def performance_chart(ticker):
 
-    #ticker = 'TSLA'
+    #ticker = 'NIU'
     
     all_212_equities = pd.read_sql_table("equities", con=engine, index_col='index')
 
@@ -347,32 +364,36 @@ def performance_chart(ticker):
     # https://plotly.com/python/discrete-color/
     sells['Target'] = sells['Target'].astype(str)
     buys['Target'] = buys['Target'].astype(str)
+        
+    if len(sells) > 0:
+        
+        fig1 = px.scatter(sells, x='Trading day', y='Execution_Price', color='Target')
     
-    fig1 = px.scatter(sells, x='Trading day', y='Execution_Price', color='Target')
+        for x in fig1.data:
+            if x['legendgroup'] == '1':
+                x['marker'] =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+                x['name'] = 'Successful Sell Point'
+                fig.add_trace(x)
+            elif x['legendgroup'] == '0':
+                x['marker'] =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+                x['name'] = 'Unsuccessful Sell Point'
+                fig.add_trace(x)
     
-    for x in fig1.data:
-        if x['legendgroup'] == '1':
-            x['marker'] =  {'color':'#E24C4F', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-            x['name'] = 'Successful Sell Point'
-            fig.add_trace(x)
-        elif x['legendgroup'] == '0':
-            x['marker'] =  {'color':'#E24C4F', 'line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-            x['name'] = 'Unsuccessful Sell Point'
-            fig.add_trace(x)
-    
-    fig2 = px.scatter(buys, x='Trading day', y='Execution_Price', color='Target')
-    #fig2.update_traces(marker=dict(color='blue'))
-    #fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
-    
-    for x in fig2.data:
-        if x['legendgroup'] == '1':
-            x['marker'] =  {'color':'#3D9970', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-            x['name'] = 'Successful Buy Point'
-            fig.add_trace(x)
-        elif x['legendgroup'] == '0':
-            x['marker'] =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
-            x['name'] = 'Unsuccessful Buy Point'
-            fig.add_trace(x)
+    if len(buys) > 0:
+
+        fig2 = px.scatter(buys, x='Trading day', y='Execution_Price', color='Target')
+        #fig2.update_traces(marker=dict(color='blue'))
+        #fig2.update_traces(marker=dict(color='#30C296', size=7, line=dict(width=2, color='DarkSlateGrey')))
+        
+        for x in fig2.data:
+            if x['legendgroup'] == '1':
+                x['marker'] =  {'color':'#3D9970', 'line': {'color': 'yellow', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+                x['name'] = 'Successful Buy Point'
+                fig.add_trace(x)
+            elif x['legendgroup'] == '0':
+                x['marker'] =  {'color':'#3D9970','line': {'color': 'black', 'width': 2}, 'size': 7, 'symbol': 'circle'}
+                x['name'] = 'Unsuccessful Buy Point'
+                fig.add_trace(x)
     
     for x in range(len(fig.data)):
         main_fig.add_trace(fig.data[x], secondary_y=True)
