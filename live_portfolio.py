@@ -7,22 +7,20 @@ Created on Fri Nov 20 18:54:21 2020
 
 from selenium import webdriver 
 from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
+#from selenium.common.exceptions import NoSuchElementException
 from fake_useragent import UserAgent
-import time
-from googlefinance import getQuotes
-import json
+#from googlefinance import getQuotes
 import yfinance as yf
 import os
 from dotenv import load_dotenv
-from datetime import datetime
+import datetime
 from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
 import time
 from sqlalchemy import create_engine
 import re
 import difflib
-from helpers import get_market, get_yf_symbol
+from helpers import get_yf_symbol
 
 load_dotenv(verbose=True, override=True)
 
@@ -116,7 +114,8 @@ def live_portfolio():
             dic = yf.Ticker(ticker).info
             
             r.Sector = dic['sector']
-            r.Industry = dic['industry']
+                        
+            r.Industry = 'Spac City' if dic['industry'] == 'Shell Companies' else dic['industry']
             
         except:
             r.Sector = 'Uncategorised'
@@ -128,7 +127,16 @@ def live_portfolio():
     
     def prev_price(r):
         try:
-            r['PREV_CLOSE'] = yf.download(tickers=r['YF_TICKER'], period='2d')['Adj Close'].values[0] #previous close
+            # look at date, must not be today us stocks work with values[-1] others need values[0]
+            if r['YF_TICKER'].find('.') != -1:
+                # VFEM is broken on yfinance
+                r['PREV_CLOSE'] = yf.download(tickers=r['YF_TICKER'], period='2d')['Adj Close'].values[0]
+            else:
+                #print('US')
+                if datetime.time(hour=14, minute=30) < datetime.datetime.now().time():
+                    r['PREV_CLOSE'] = yf.download(tickers=r['YF_TICKER'], period='2d')['Adj Close'].values[0] # works while market is open
+                else:
+                    r['PREV_CLOSE'] = yf.download(tickers='tsla', period='2d')['Adj Close'].values[-1] # previous close
         except IndexError:
             print(f"Can't find previous price for {r['YF_TICKER']}")
             r['PREV_CLOSE'] = float('NaN')
