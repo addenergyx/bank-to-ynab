@@ -10,16 +10,10 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException
 from fake_useragent import UserAgent
 import time
-from googlefinance import getQuotes
-import json
 import yfinance as yf
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from fake_useragent import UserAgent
-from selenium import webdriver 
-from selenium.webdriver.chrome.options import Options
-from fake_useragent import UserAgent
 from webdriver_manager.chrome import ChromeDriverManager
 
 load_dotenv(verbose=True, override=True)
@@ -52,9 +46,9 @@ def get_driver(headless=False):
         # https://stackoverflow.com/questions/23908319/run-selenium-with-crontab-python
         return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options) 
 
-driver = get_driver(headless=True)
-driver.implicitly_wait(20)
-def getPremarketChange(ticker):
+# driver = get_driver(headless=True)
+# driver.implicitly_wait(20)
+def getPremarketChange(ticker, driver):
 
     #driver = get_driver(headless=True)
     #ticker = 'TSLA'
@@ -78,29 +72,30 @@ def getPremarketChange(ticker):
     #price = float(price[1:]) # strip $
     print(f'{ticker}: {price}')
     return price
-start = time.time()
-for ticker in ['tsla','aapl','fb']:
-    getPremarketChange(ticker)
-end = time.time()
-print(end - start)
-driver.close()
-driver.quit()
+
+# start = time.time()
+# for ticker in ['tsla','aapl','fb']:
+#     getPremarketChange(ticker, get_driver())
+# end = time.time()
+# print(end - start)
+# driver.close()
+# driver.quit()
     
-import pandas as pd
-from sqlalchemy import create_engine
+# import pandas as pd
+# from sqlalchemy import create_engine
 
-db_URI = os.getenv('AWS_DATABASE_URL')
-engine = create_engine(db_URI)
-holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+# db_URI = os.getenv('AWS_DATABASE_URL')
+# engine = create_engine(db_URI)
+# holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
 
-ll = holdings['Ticker'].drop_duplicates()
+# ll = holdings['Ticker'].drop_duplicates()
 
-import time
-start = time.time()
-for ticker in ['tsla','aapl','fb']:
-    getPremarketChange(ticker)
-end = time.time()
-print(end - start)
+# import time
+# start = time.time()
+# for ticker in ['tsla','aapl','fb']:
+#     getPremarketChange(ticker)
+# end = time.time()
+# print(end - start)
 
 # inside: 13.626956939697266
 # outside: 3.4367830753326416
