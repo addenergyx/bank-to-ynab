@@ -11,8 +11,8 @@ import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
 #import dash_daq as daq
-from dash.dependencies import Input, Output
-import plotly.graph_objs as go
+from dash.dependencies import Input, Output, State
+#import plotly.graph_objs as go
 from visuals import *
 #performance_chart, ml_model, period_chart, goal_chart, profit_loss_chart, cumsum_chart, dividend_chart, return_treemap, convert_to_gbp, get_holdings
 from components import Fab
@@ -21,11 +21,13 @@ import os
 from sqlalchemy import create_engine
 from jobs import updates
 from newsapi import NewsApiClient
+import plotly.express as px
+from live_portfolio import live_portfolio
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
 
-external_stylesheets =['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP, 
+external_stylesheets =['https://codepen.io/IvanNieto/pen/bRPJyb.css', dbc.themes.BOOTSTRAP,
                        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css']
 
 app = dash.Dash(__name__, server=server, url_base_pathname='/investments/', external_stylesheets=external_stylesheets, assets_folder='./assets/investment_assets',
@@ -131,7 +133,7 @@ profit_card = [
 map_card = [
                 html.Div([            
                    #dcc.Loading(
-                        dcc.Graph(id='treemap-graph'#, figure=return_treemap()
+                        dcc.Graph(id='treemap-graph'#, figure=day_treemap()
                                   )
                     #)
                 ], id='treemap-block', hidden=False)
@@ -141,8 +143,8 @@ stats_card = [
                 dbc.CardBody(
                     [
                         html.H2('Results'),
-                        html.P("This Month's Opening Balance"),
-                        html.Strong(html.P(id='monthly-repayment', className='result')),
+                        html.P("Capital"),
+                        html.Strong(html.P(id='Capital', className='result')),
                         html.P('Total Realised P/L'),
                         html.Strong(html.P(id='total-profit', className='result')),
                         html.P("This Month's Realised P/L"),
@@ -323,8 +325,13 @@ body = html.Div(
                               html.Div(
                                    [
                                   html.Button(
+                                    'Update All',
+                                    id='update-all-btn',
+                                    style={'margin-top':'50px'}
+                                  ),
+                                  html.Button(
                                     'Update Portfolio',
-                                    id='update-btn',
+                                    id='update-portfolio-btn',
                                     style={'margin-top':'50px'}
                                   ),
                               ]),
@@ -398,9 +405,9 @@ body = html.Div(
                                    ], className = 'data-row'
                                ),
                                                     
-                               dcc.Interval(id="stats-interval", n_intervals=0, interval=60000),
-                               dcc.Interval(id="map-interval", n_intervals=0, interval=10000),
-                               dcc.Interval(id="dropdown-interval", n_intervals=0, interval=7200000),
+                               dcc.Interval(id="stats-interval", n_intervals=0, interval=600000),
+                               dcc.Interval(id="map-interval", n_intervals=0, interval=90000),
+                               dcc.Interval(id="dropdown-interval", n_intervals=0, interval=720000),
                                html.Div(id='container-button-basic', hidden=True)
                               
                            ], id='main-panel', width=12, lg=9
@@ -408,7 +415,7 @@ body = html.Div(
                 ], no_gutters=True),
              ])
 
-@app.callback([Output("monthly-repayment", "children"), Output("total-profit", "children"), 
+@app.callback([Output("Capital", "children"), Output("total-profit", "children"), 
                 #Output("total-interest", "children"),  
                 Output("monthly-profit", "children"), Output("monthly-profit", "style")], 
               [Input("stats-interval", "n_intervals")])
@@ -416,8 +423,9 @@ def event_cb(data):
     
     summary_df = pd.read_sql_table("summary", con=engine, index_col='index')
     
-    balance = summary_df['Closing balance'].iloc[-2]
-    balance = "{:.2f}".format(round(balance, 2))
+    # balance = summary_df['Closing balance'].iloc[-2]
+    # balance = "{:.2f}".format(round(balance, 2))
+    balance = "{:.2f}".format(get_capital())
     month_profit = round(summary_df['Returns'].iloc[-1], 2)
     total_profit = "{:.2f}".format(round(summary_df['Returns'].cumsum().iloc[-1], 2))
     
@@ -426,29 +434,19 @@ def event_cb(data):
     
     return f'£{balance}', f'£{total_profit}', f'{month}', style
 
-# @app.callback(Output("floats", "children"),
-#               [Input("weight-interval", "n_intervals")])
-# def event(data):
-    
-#     holdings = get_holdings()
-#     holdings['UK MARKET VALUE'] = ''
-#     holdings = holdings.apply(convert_to_gbp, axis=1)
-    
-#     #sum(holdings['MARKET VALUE'])
-    
-#     balance = "{:.2f}".format(round(sum(holdings['UK MARKET VALUE']), 2))
-    
-#     return f'£{balance}'
-
 @app.callback(
     Output('container-button-basic', 'children'),
-    [Input('update-btn', 'n_clicks')])
-def update_output(n_clicks):
-    print(n_clicks)
-    if n_clicks is None:
-        return ''
-    # live_portfolio()
-    updates()
+    [Input('update-portfolio-btn', 'n_clicks'), Input('update-all-btn', 'n_clicks')])
+def update_output(btn1, btn2):
+    
+    changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
+    print([p['prop_id'] for p in dash.callback_context.triggered])
+    
+    if 'update-portfolio-btn' in changed_id:
+        return live_portfolio()
+    elif 'update-all-btn' in changed_id:
+        return updates()
+    
     return ''
 
 @app.callback(
@@ -461,15 +459,6 @@ def update_tickers(n_clicks):
     portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
 
     return tickers, build_table(portfolio)
-
-# @app.callback(Output('full-data-card','children'), 
-#               [Input("dropdown-interval", "n_intervals")])
-# def event_s(data):
-#     portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
-    
-#     portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
-    
-#     return build_table(portfolio)
     
 @app.callback(Output('graphy','figure'), 
               [Input("ticker-dropdown", "value")])
@@ -523,46 +512,6 @@ def event_b(chart):
     
     return fig
 
-# @app.callback(
-#     [Output('graph-block', 'hidden'), Output('graphy', 'figure'), Output('statss', 'hidden'), 
-#      Output('monthly-repayment', 'children'), Output('total-repayable', 'children'),
-#      Output('total-interest', 'children'), Output('full-data-card','children'), 
-#      Output('advice', 'children')], 
-#     [Input('loan-amount', 'value'), Input('interest-rate', 'value'), Input('term-length', 'value')])
-# def update_slider(amount, rate, length):
-#     # if 0 in (amount, rate, length) or None in (amount, rate, length):
-#     #     pass
-#     # else:
-#     # amount = 1000         
-#     # rate = 3.9
-#     # length = 12
-#     # try:
-#     tmp = total_monthly_payment(amount, rate, length)
-#     # except ZeroDivisionError:
-#     #     return True, build_fig(df), False, format_amount(tmp), format_amount(principal_interest), format_amount(df['Total Interest'].iloc[-1]), build_table(df), guide
-
-#     df = amortization(amount, rate, length)
-#     summary = pd.read_csv('Investment Portfolio.csv', parse_dates=['Trading day'], dayfirst=True).sort_values(['Trading day','Trading time'], ascending=False)
-    
-#     principal_interest = amount + df['Total Interest'].iloc[-1]
-        
-#     if length > 6:
-#         length2 =  randint(round(length/4), length-1)
-#         df2 = amortization(amount, rate, length2)
-#         savings = df['Total Interest'].iloc[-1] - df2['Total Interest'].iloc[-1]
-#         guide = advice(length2, savings)
-#     elif length > 1:
-#         length2 =  length - 1
-#         df2 = amortization(amount, rate, length2)
-#         savings = df['Total Interest'].iloc[-1] - df2['Total Interest'].iloc[-1]
-#         guide = advice(length2, savings)
-#     else:
-#         guide = 'Hi there!! Enter some details so we can calculate your loan payment.'
-    
-#     return False, build_fig(df), False, format_amount(tmp), format_amount(principal_interest), format_amount(df['Total Interest'].iloc[-1]), build_table(summary), guide
-
-# def button():
-#     return html.Div([dbc.Button([html.Span(className='fab fa-github icon')], className='fixed-btn', href='https://github.com/addenergyx/cf-coding-challenge', external_link=True)], className='button-container')
 
 def Homepage():
     return html.Div([
@@ -581,7 +530,8 @@ data that was generated when the Dash app was first initialised
 app.layout = Homepage()
 
 if __name__ == '__main__':
-    app.run_server(debug=True, use_reloader=False) # https://community.plotly.com/t/keep-updating-redrawing-graph-while-function-runs/8744
+    app.run_server(debug=True, threaded=True, use_reloader=False) 
+    #app.run_server(debug=True, use_reloader=False, processes=4) # https://community.plotly.com/t/keep-updating-redrawing-graph-while-function-runs/8744
     #app.run_server()
 
 
