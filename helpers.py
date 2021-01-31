@@ -26,11 +26,14 @@ import plotly.graph_objects as go
 from pytrends.request import TrendReq
 from sqlalchemy import create_engine
 from pytrends import dailydata
+from forex_python.converter import CurrencyRates
 
 load_dotenv(verbose=True, override=True)
 
 email_user = os.getenv('GMAIL')
 email_pass = os.getenv('GMAIL_PASS') # Make sure 'Less secure app access' is turned on
+
+c = CurrencyRates()
 
 port = 993
 
@@ -44,9 +47,42 @@ db_URI = os.getenv('AWS_DATABASE_URL')
 
 engine = create_engine(db_URI)
 
+# missing_data = pd.read_csv('data/28-01-2021.csv')
+
+# missing_data[['Trading day', 'Trading time']] = missing_data['Time'].str.split(' ', expand=True)
+# missing_data['Type'] = missing_data['Action'].str.split(' ').str[1].str.capitalize()
+
+# #missing_data.drop(['Time', 'Action', 'Name'], inplace=True, axis=1)
+
+# missing_data.rename(columns={'Ticker':'Ticker Symbol', 'No. of shares':'Shares', 'Total (GBP)':'Total cost', 'ID':'Order ID',
+#                              'Finra fee (GBP)':'Charges and fees'})
+
+# date = '28/01/2021 14:42'
+# date_time_obj = datetime.strptime(date, '%d/%m/%Y %H:%M')
+# rate = c.get_rate('USD', 'GBP', date_time_obj)
+
+# def get_ex_rate(r):
+#     date_time_obj = datetime.strptime(date, '%d/%m/%Y %H:%M')
+#     rate = c.get_rate(r['Currency (Price / share)'], 'GBP', date_time_obj)
+#     r['Exchange rate'] = rate
+    
+# missing_data.apply(get_rate, axis=1)
+
+def get_mailbox_list(folder):
+    
+    mail.select(folder)
+
+    status, mailbox = mail.search(None, 'ALL')
+        
+    mailbox_list = mailbox[0].split()
+    
+    return mailbox_list
+
 def get_portfolio():
     
-    mail.select('investing')
+    print('Updating Orders')
+    
+    mailbox_list = get_mailbox_list('investing')
     
     status, mailbox = mail.search(None, 'ALL')
     
@@ -156,6 +192,8 @@ def get_portfolio():
     trades.to_csv('Investment trades.csv', index=False )
     trades.to_sql('trades', engine, if_exists='replace')
     
+    print('Orders Updated')
+    
     return trades
 
 ## For the yahoo finance api, stocks outside of the US have trailing symbols to state which market they are from
@@ -260,11 +298,7 @@ def time_frame_returns(timeframe='M'):
 
 def get_summary():
 
-    mail.select('dividends')
-    
-    status, mailbox = mail.search(None, 'ALL')
-    
-    mailbox_list = mailbox[0].split()
+    mailbox_list = get_mailbox_list('dividends')
     
     data = []
     
@@ -362,6 +396,105 @@ def get_buy_sell(ticker):
 
 def formatting(num):
     return round(num, 2)
+
+def get_capital():
+    
+    mailbox_list = get_mailbox_list('deposits')
+    
+    total = 0
+    
+    for item in mailbox_list:
+    
+    # for num in data[0].split():
+        status, body = mail.fetch(item, '(RFC822)')
+        email_msg = body[0][1]
+    
+        raw_email = email_msg.decode('utf-8')
+    
+        email_message = email.message_from_bytes(email_msg)
+    
+        counter = 1
+        for part in email_message.walk():
+            if part.get_content_maintype() == "multipart":
+                continue
+            filename = part.get_filename()
+            if not filename:
+                ext = '.html'
+                filename = 'msg-part%08d%s' %(counter, ext)
+            
+            counter += 1
+            
+            content_type = part.get_content_type()
+            # print(content_type)
+            
+            if "html" in content_type:
+                html_ = part.get_payload()
+                soup = BeautifulSoup(html_, 'html.parser')
+                
+                #a = soup.find("strong").string
+    
+                table = soup.find_all('table')
+    
+                a = pd.read_html(str(table))[2][1][0]
+                
+                a = a.strip('GBP ')
+                
+                pattern = re.compile(r'\s+')
+                a = re.sub(pattern, '', a)
+                print(a)
+                total += float(a)
+    
+    # (9.2 from free shares, 85.2 from rbg rights issue)
+    # Add this to match T212 total
+    deposits = total + 94.4 
+    
+    total = 0
+    
+    mailbox_list = get_mailbox_list('withdraws')
+    
+    for item in mailbox_list:
+    
+    # for num in data[0].split():
+        status, body = mail.fetch(item, '(RFC822)')
+        email_msg = body[0][1]
+    
+        raw_email = email_msg.decode('utf-8')
+    
+        email_message = email.message_from_bytes(email_msg)
+    
+        counter = 1
+        for part in email_message.walk():
+            if part.get_content_maintype() == "multipart":
+                continue
+            filename = part.get_filename()
+            if not filename:
+                ext = '.html'
+                filename = 'msg-part%08d%s' %(counter, ext)
+            
+            counter += 1
+            
+            content_type = part.get_content_type()
+            # print(content_type)
+            
+            if "html" in content_type:
+                html_ = part.get_payload()
+                soup = BeautifulSoup(html_, 'html.parser')
+                
+                a = soup.find("span").string
+                
+                a = a.strip('GBP ')
+                
+                pattern = re.compile(r'\s+')
+                a = re.sub(pattern, '', a)
+                print(a)
+                total += float(a)
+                
+    #Add 85.2 for rbg rights issue to match T212
+    withdraws = total + 85.2
+    
+    capital = round(deposits - withdraws, 2)
+
+    return capital
 
 # ------------------------------------------------           
 #
