@@ -21,15 +21,9 @@ from sqlalchemy import create_engine
 from dotenv import load_dotenv
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+from scraper import get_driver
 
 load_dotenv(verbose=True, override=True)
-
-WORKING_ENV = os.getenv('WORKING_ENV', 'development')
-
-if WORKING_ENV != 'development': 
-    import sys
-    sys.path.append(os.path.abspath("/home/pi/.local/lib/python3.7/site-packages/selenium/__init__.py"))
-    sys.path.append(os.path.abspath("/usr/local/lib/python3.7/dist-packages/fake_useragent/__init__.py"))
 
 ## Trading 212 hot list
 ## On 2nd November Trading 212 added a popularity tracker to their site
@@ -81,25 +75,25 @@ overall_leaderboard['Position'] = list(overall_leaderboard.index+1)
 
 ## ------------------------- Selenium Setup ------------------------- ##
 
-def get_driver():
-    options = Options()
-    ua = UserAgent()
-    userAgent = ua.random
-    options.add_argument('user-agent={}'.format(userAgent))
+# def get_driver():
+#     options = Options()
+#     ua = UserAgent()
+#     userAgent = ua.random
+#     options.add_argument('user-agent={}'.format(userAgent))
      
-    if WORKING_ENV == 'development':
-        return webdriver.Chrome(ChromeDriverManager().install(), options=options) # automatically use the correct chromedriver by using the webdrive-manager
-    else:
+#     if WORKING_ENV == 'development':
+#         return webdriver.Chrome(ChromeDriverManager().install(), options=options) # automatically use the correct chromedriver by using the webdrive-manager
+#     else:
         
-        ## Headless browser - doesn't pop up
-        ## A headless browser is a web browser without a graphical user interface.
-        #options.add_argument("--headless") 
+#         ## Headless browser - doesn't pop up
+#         ## A headless browser is a web browser without a graphical user interface.
+#         #options.add_argument("--headless") 
         
-        # https://ivanderevianko.com/2020/01/selenium-chromedriver-for-raspberrypi
-        # https://www.reddit.com/r/selenium/comments/7341wt/success_how_to_run_selenium_chrome_webdriver_on/
-        # https://askubuntu.com/questions/1090142/cronjob-unable-to-find-module-pydub
-        # https://stackoverflow.com/questions/23908319/run-selenium-with-crontab-python
-        return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options) 
+#         # https://ivanderevianko.com/2020/01/selenium-chromedriver-for-raspberrypi
+#         # https://www.reddit.com/r/selenium/comments/7341wt/success_how_to_run_selenium_chrome_webdriver_on/
+#         # https://askubuntu.com/questions/1090142/cronjob-unable-to-find-module-pydub
+#         # https://stackoverflow.com/questions/23908319/run-selenium-with-crontab-python
+#         return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options) 
 
 driver = get_driver()
 
