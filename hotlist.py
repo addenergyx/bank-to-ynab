@@ -194,7 +194,7 @@ def user_data(xpath, file, historical_df):
     driver.find_element_by_xpath(xpath).click()
     
     # 1D chart stopped working so using 8H chart
-    driver.find_element_by_xpath('/html/body/div[1]/section[2]/div/div/div[2]/div[2]/div[3]').click()
+    #driver.find_element_by_xpath('/html/body/div[1]/section[2]/div/div/div[2]/div[2]/div[3]').click()
 
     time.sleep(5) # Pause for page to load
     
