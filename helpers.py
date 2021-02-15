@@ -27,6 +27,7 @@ from pytrends.request import TrendReq
 from sqlalchemy import create_engine
 from pytrends import dailydata
 from forex_python.converter import CurrencyRates
+import glob
 
 load_dotenv(verbose=True, override=True)
 
@@ -46,16 +47,6 @@ mail.login(email_user, email_pass)
 db_URI = os.getenv('AWS_DATABASE_URL')
 
 engine = create_engine(db_URI)
-
-# missing_data = pd.read_csv('data/28-01-2021.csv')
-
-# missing_data[['Trading day', 'Trading time']] = missing_data['Time'].str.split(' ', expand=True)
-# missing_data['Type'] = missing_data['Action'].str.split(' ').str[1].str.capitalize()
-
-# #missing_data.drop(['Time', 'Action', 'Name'], inplace=True, axis=1)
-
-# missing_data.rename(columns={'Ticker':'Ticker Symbol', 'No. of shares':'Shares', 'Total (GBP)':'Total cost', 'ID':'Order ID',
-#                              'Finra fee (GBP)':'Charges and fees'})
 
 # date = '28/01/2021 14:42'
 # date_time_obj = datetime.strptime(date, '%d/%m/%Y %H:%M')
@@ -160,6 +151,8 @@ def get_portfolio():
     ## For getting ROI, Dataframe needs to be ordered in ascending order and grouped by Ticker Symbol
     trades.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
     
+    trades['Execution_Price'] = trades['Price'] / trades['Exchange rate']
+    
     ## Datetime not compatible with excel
     #trades['Trading day'] = pd.to_datetime(trades['Trading day'], dayfirst=True)
     
@@ -189,12 +182,37 @@ def get_portfolio():
     
     # simply_wall_st.to_csv('Simply Wall St Portfolio.csv', index=False)
     
+    ## ------------------------- Add missing data from csv ------------------------- ##
+
+    data = pd.DataFrame()
+    for file_name in glob.glob('missing_data/'+'*.csv'):
+        x = pd.read_csv(file_name, low_memory=False)
+        print(file_name)
+        data = pd.concat([data,x],axis=0)
+
+    data['Execution_Price'] = data['Price / share']
+    data[['Trading day', 'Trading time']] = data['Time'].str.split(' ', expand=True)
+    data['Type'] = data['Action'].str.split(' ').str[1].str.capitalize()
+    data['Trading day'] = pd.to_datetime(data['Trading day'])
+    data['Price'] = data['Price / share'] / data['Exchange rate']
+    
+    data.drop(['Time', 'Action', 'Finra fee (GBP)', 'Currency (Price / share)', 'Result (GBP)', 'Price / share', 'Name' ], inplace=True, axis=1)  
+    
+    data.rename(columns={'Ticker':'Ticker Symbol', 'No. of shares':'Shares', 'Total (GBP)':'Total amount', 'ID':'Order ID',
+                                  'Finra fee (GBP)':'Charges and fees', 'Currency (Price / share)': 'Currency Price / share',
+                                  'Result (GBP)':'Result'}, inplace=True)
+    
+    trades = pd.concat([trades, data], ignore_index=True)
+    trades.sort_values(['Ticker Symbol','Trading day','Trading time'], inplace=True, ascending=True)
+
     trades.to_csv('Investment trades.csv', index=False )
     trades.to_sql('trades', engine, if_exists='replace')
     
     print('Orders Updated')
     
     return trades
+
+#get_portfolio()
 
 ## For the yahoo finance api, stocks outside of the US have trailing symbols to state which market they are from
 def get_yf_symbol(market, symbol):
@@ -379,10 +397,11 @@ def get_summary():
 def get_buy_sell(ticker):
     
     portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day'])
-
-    df = portfolio[portfolio['Ticker Symbol'] == ticker]
     
-    df['Execution_Price'] = df['Price'] / df['Exchange rate'] # Convert price to original currency
+    df = portfolio[portfolio['Ticker Symbol'] == ticker]
+
+    #df['Execution_Price'] = df['Price / share'] # Convert price to original currency
+    # df['Execution_Price'] = df['Price'] / df['Exchange rate'] # for emails instead of csv
     
     df['Trading day'] = pd.to_datetime(df['Trading day']) # Match index date format
     
@@ -441,7 +460,7 @@ def get_capital():
                 
                 pattern = re.compile(r'\s+')
                 a = re.sub(pattern, '', a)
-                print(a)
+                #print(a)
                 total += float(a)
     
     # (9.2 from free shares, 85.2 from rbg rights issue)
@@ -486,7 +505,7 @@ def get_capital():
                 
                 pattern = re.compile(r'\s+')
                 a = re.sub(pattern, '', a)
-                print(a)
+                #print(a)
                 total += float(a)
                 
     #Add 85.2 for rbg rights issue to match T212
