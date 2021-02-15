@@ -22,7 +22,11 @@ from sqlalchemy import create_engine
 from jobs import updates
 from newsapi import NewsApiClient
 import plotly.express as px
-from live_portfolio import live_portfolio
+from live_portfolio import get_live_portfolio
+from helpers import get_capital
+from live_updates import day_chart, return_map
+from datetime import time
+import time as t
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
@@ -78,6 +82,10 @@ app.index_string = '''
 portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
 equities = pd.read_sql_table("equities", con=engine, index_col='index')
 
+if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
+    interval = 240000
+else:
+    interval = 120000
 # def update_news(ticker):
 #     # Init
 #     newsapi = NewsApiClient(api_key=os.getenv('NEWS_API_KEY'))
@@ -137,6 +145,15 @@ map_card = [
                                   )
                     #)
                 ], id='treemap-block', hidden=False)
+             ]
+
+map_cardb = [
+                html.Div([            
+                   #dcc.Loading(
+                        dcc.Graph(id='returnmap-graph'#, figure=day_treemap()
+                                  )
+                    #)
+                ], id='returnmap-block', hidden=False)
              ]
 
 stats_card = [
@@ -300,16 +317,16 @@ body = html.Div(
                                   ),
                               ]),
                             
-                             html.Div(
-                                   [
-                                  dcc.Dropdown(
-                                    id='map-dropdown',
-                                    options=maps,
-                                    value='Day',
-                                    clearable=False,
-                                    style={'margin-top':'50px'}
-                                  ),
-                              ]), 
+                             # html.Div(
+                             #       [
+                             #      dcc.Dropdown(
+                             #        id='map-dropdown',
+                             #        options=maps,
+                             #        value='Day',
+                             #        clearable=False,
+                             #        style={'margin-top':'50px'}
+                             #      ),
+                             #  ]), 
                             
                               html.Div(
                                    [
@@ -374,6 +391,12 @@ body = html.Div(
                                        dbc.Col(html.Div(map_card), width=12),
                                    ], className = 'data-row'
                                ),
+                               
+                               dbc.Row(
+                                   [
+                                       dbc.Col(html.Div(map_cardb), width=12),
+                                   ], className = 'data-row'
+                               ),
                                                               
                                dbc.Row(
                                    [
@@ -406,7 +429,8 @@ body = html.Div(
                                ),
                                                     
                                dcc.Interval(id="stats-interval", n_intervals=0, interval=600000),
-                               dcc.Interval(id="map-interval", n_intervals=0, interval=90000),
+                               dcc.Interval(id="map-interval", n_intervals=0, interval=interval), # TODO: change interval based on time of day, 240s in pre market, 120 in market hours 
+                               dcc.Interval(id="map-intervalb", n_intervals=0, interval=interval),
                                dcc.Interval(id="dropdown-interval", n_intervals=0, interval=720000),
                                html.Div(id='container-button-basic', hidden=True)
                               
@@ -443,10 +467,9 @@ def update_output(btn1, btn2):
     print([p['prop_id'] for p in dash.callback_context.triggered])
     
     if 'update-portfolio-btn' in changed_id:
-        return live_portfolio()
+        return get_live_portfolio()
     elif 'update-all-btn' in changed_id:
         return updates()
-    
     return ''
 
 @app.callback(
@@ -456,7 +479,9 @@ def update_tickers(n_clicks):
     
     portfolio = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=['Trading day']).sort_values(['Trading day','Trading time'], ascending=False)
     tickers = [company(x) for x in portfolio['Ticker Symbol'].drop_duplicates()]
-    portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
+    
+    # portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total amount', 'Trading day']]
+    portfolio = portfolio[['Ticker Symbol', 'Type', 'Shares', 'Price', 'Total cost', 'Trading day']]
 
     return tickers, build_table(portfolio)
     
@@ -465,12 +490,43 @@ def update_tickers(n_clicks):
 def event_a(ticker):
     return performance_chart(ticker)
 
-@app.callback(Output('treemap-graph','figure'), 
-              [Input("map-dropdown", "value"), Input("map-interval", "n_intervals")])
-def event_o(option, ticks):
-    if option == 'Portfolio':
-        return return_treemap()
-    return day_treemap()
+# @app.callback(
+#     [Output('treemap-graph','figure'), Output('map-interval', 'interval')],
+#     [Input("map-dropdown", "value"), Input("map-interval", "n_intervals")])
+# def event_o(option, ticks):
+    
+#     if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
+#         interval = 240000
+#     else:
+#         interval = 120000
+    
+#     if option == 'Portfolio':
+#         return return_map(), interval
+#     return day_chart(), interval
+
+@app.callback(
+    [Output('treemap-graph','figure'), Output('map-interval', 'interval')],
+    [Input("map-interval", "n_intervals")])
+def event_o(ticks):
+
+    if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
+        interval = 240000
+    else:
+        interval = 120000
+    
+    return day_chart(), interval
+
+@app.callback(
+    [Output('returnmap-graph','figure'), Output('map-intervalb', 'interval')],
+    [Input("map-intervalb", "n_intervals")])
+def event_oa(ticks):
+    
+    if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
+        interval = 240000
+    else:
+        interval = 120000
+    
+    return return_map(), interval
 
 @app.callback(Output('profit-graph','figure'), 
               [Input("chart-dropdown", "value")])
