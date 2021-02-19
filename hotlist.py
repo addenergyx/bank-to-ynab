@@ -8,13 +8,9 @@ Created on Tue Nov 10 20:56:03 2020
 # import requests
 # from bs4 import BeautifulSoup
 import pandas as pd
-from selenium import webdriver 
-from selenium.webdriver.chrome.options import Options
 #from selenium.common.exceptions import NoSuchElementException
-from fake_useragent import UserAgent
 import time
 from datetime import date, datetime
-from webdriver_manager.chrome import ChromeDriverManager
 import re
 import os
 from sqlalchemy import create_engine
@@ -174,7 +170,7 @@ for d in complete_df['Date'].unique():
 
 complete_df = comp.copy()
 complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
-complete_df.to_csv(f'leaderboard-{timestamp}.csv', index=False)
+#complete_df.to_csv(f'leaderboard-{timestamp}.csv', index=False)
 
 complete_df.to_sql('leaderboard', engine, if_exists='replace')
 
@@ -252,7 +248,7 @@ def user_data(xpath, file, historical_df):
     
     #complete_df['User_change'] = complete_df['User_change'] * -1
     complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
-    complete_df.to_csv(file, index=False)
+    #complete_df.to_csv(file, index=False)
     
     upload_to_google_drive(file)
 
