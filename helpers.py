@@ -59,6 +59,15 @@ engine = create_engine(db_URI)
     
 # missing_data.apply(get_rate, axis=1)
 
+def get_holdings():
+    holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+      
+    # Recent ticker change due to merger, Yahoo finance pulls wrong data, should be fixed later
+    #holdings = holdings[holdings['Ticker'] != 'UWMC']
+    
+    holdings['PREV_CLOSE'] = holdings['PREV_CLOSE'].astype('float')
+    return holdings
+
 def get_mailbox_list(folder):
     
     mail.select(folder)
@@ -91,7 +100,7 @@ def get_portfolio():
         status, body = mail.fetch(item, '(RFC822)')
         email_msg = body[0][1]
     
-        raw_email = email_msg.decode('utf-8')
+        #raw_email = email_msg.decode('utf-8')
     
         email_message = email.message_from_bytes(email_msg)
     
@@ -114,7 +123,7 @@ def get_portfolio():
                 soup = BeautifulSoup(html_, 'html.parser')
                 
                 inv = soup.select('table[class*="report"]')
-                table_list = []
+                #table_list = []
                 
                 for table in inv:
                     rows = table.findChildren('tr')
@@ -212,7 +221,7 @@ def get_portfolio():
     
     return trades
 
-#get_portfolio()
+#t = get_portfolio()
 
 ## For the yahoo finance api, stocks outside of the US have trailing symbols to state which market they are from
 def get_yf_symbol(market, symbol):
@@ -326,7 +335,7 @@ def get_summary():
         status, body = mail.fetch(item, '(RFC822)')
         email_msg = body[0][1]
     
-        raw_email = email_msg.decode('utf-8')
+        #raw_email = email_msg.decode('utf-8')
     
         email_message = email.message_from_bytes(email_msg)
     
@@ -428,7 +437,7 @@ def get_capital():
         status, body = mail.fetch(item, '(RFC822)')
         email_msg = body[0][1]
     
-        raw_email = email_msg.decode('utf-8')
+        #raw_email = email_msg.decode('utf-8')
     
         email_message = email.message_from_bytes(email_msg)
     
@@ -477,7 +486,7 @@ def get_capital():
         status, body = mail.fetch(item, '(RFC822)')
         email_msg = body[0][1]
     
-        raw_email = email_msg.decode('utf-8')
+        #raw_email = email_msg.decode('utf-8')
     
         email_message = email.message_from_bytes(email_msg)
     
