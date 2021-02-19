@@ -23,6 +23,7 @@ def get_driver(headless=False):
     options = Options()
     ua = UserAgent()
     userAgent = ua.random
+
     options.add_argument('user-agent={}'.format(userAgent))
     
     ## Headless browser - doesn't pop up
@@ -39,6 +40,8 @@ def get_driver(headless=False):
         import sys
         sys.path.append(os.path.abspath("/home/pi/.local/lib/python3.7/site-packages/selenium/__init__.py"))
         sys.path.append(os.path.abspath("/usr/local/lib/python3.7/dist-packages/fake_useragent/__init__.py"))
+        
+        options.add_argument("--no-sandbox") #https://stackoverflow.com/questions/22424737/unknown-error-chrome-failed-to-start-exited-abnormally
         
         # https://ivanderevianko.com/2020/01/selenium-chromedriver-for-raspberrypi
         # https://www.reddit.com/r/selenium/comments/7341wt/success_how_to_run_selenium_chrome_webdriver_on/
