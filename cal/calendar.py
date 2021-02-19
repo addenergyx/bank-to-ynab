@@ -4,7 +4,7 @@ Created on Wed May 27 22:00:41 2020
 
 @author: david
 """
-
+"""
 from datetime import datetime
 import os.path
 from scraper import get_div_details
@@ -184,8 +184,7 @@ for key, value in dates.items():
 print('')
 sys.stdout = backup
 f.close()  
-    
-    
+"""
     
     
     
