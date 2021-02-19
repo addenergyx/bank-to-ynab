@@ -4,20 +4,24 @@ Created on Wed May 27 22:00:41 2020
 
 @author: david
 """
-"""
-from datetime import datetime
+from datetime import datetime, timedelta
 import os.path
 from scraper import get_div_details
 from yahoo_earnings_calendar import YahooEarningsCalendar
 from sqlalchemy import create_engine
 import pandas as pd
-from pprint import pprint
 from Google import Create_Service
 import sys
+from dateutil import parser
+import pytz
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
-holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+
+portfolio = pd.read_sql_table("portfolio", con=engine, index_col='index')
+#holdings = pd.read_sql_table("holdings", con=engine, index_col='index')
+
+#prev_holdings = list(set(holdings['Ticker Symbol']) - set(portfolio['Ticker']))
 
 ## ------------------------- Next Earning Dates ------------------------- ##
 
@@ -30,7 +34,7 @@ def get_next_earnings(ticker):
 
 dates = {}
 
-for ticker in list(holdings['YF_TICKER']):
+for ticker in list(portfolio['YF_TICKER']):
     try:
         earnings_date = get_next_earnings(ticker)
         if datetime.today() < earnings_date:
@@ -41,6 +45,8 @@ for ticker in list(holdings['YF_TICKER']):
     except:
         # Mainly spacs won't have an earnings date
         print(f'{ticker}: No data')
+
+print('')
 
 #dates = {k: dates[k] for k in list(dates)[:2]}
 
@@ -111,25 +117,36 @@ def create_body(ticker, date):
       },
       'colorId' : 0,
       'reminders': {
-        'useDefault': False,
-        'overrides': [
-          {'method': 'email', 'minutes': 24 * 60},
-          {'method': 'popup', 'minutes': 24 * 60},
-          {'method': 'email', 'minutes': 48 * 60},
-          {'method': 'popup', 'minutes': 48 * 60},
-          #{'method': 'email', 'minutes': 168 * 60},
-          {'method': 'popup', 'minutes': 168 * 60},
-        ],
+        'useDefault': True,
+        # 'useDefault': False,
+        # 'overrides': [
+        #   {'method': 'email', 'minutes': 24 * 60},
+        #   {'method': 'popup', 'minutes': 24 * 60},
+        #   {'method': 'email', 'minutes': 48 * 60},
+        #   {'method': 'popup', 'minutes': 48 * 60},
+        #   #{'method': 'email', 'minutes': 168 * 60},
+        #   {'method': 'popup', 'minutes': 168 * 60},
+        # ],
       },
     } 
 
 # Gets all future events in stocks calendar 
-events = service.events().list(
-    calendarId=calendar_id_stocks,
-    singleEvents=True,
-    orderBy='startTime',
-    timeMin=now,
-).execute()
+# events = service.events().list(
+#     calendarId=calendar_id_stocks,
+#     singleEvents=True,
+#     orderBy='startTime',
+#     timeMin=timemin,
+# ).execute()
+
+def get_events(timeMin=now):
+    return service.events().list(
+        calendarId=calendar_id_stocks,
+        singleEvents=True,
+        orderBy='startTime',
+        timeMin=now,
+    ).execute()
+
+events = get_events()
 
 # key = 'TSLA'
 # value = '2021-02-03'
@@ -162,7 +179,7 @@ for key, value in dates.items():
                     eventId=eventId,
                     body=create_body(key, value),
                 ).execute()
-                print(f'Updating event {key}')
+                print(f'Updating event {key}: {value}')
             break
         
         else:
@@ -177,14 +194,94 @@ for key, value in dates.items():
             sendUpdates='none',
             body=create_body(key, value)
         ).execute()
-        print(f'Creating event {key}')
+        print(f'Creating event {key}: {value}')
     # else:
     #     print(f'{key} already exists')
+
+## ------------------------- Three day rule events ------------------------- ##
+
+# If company misses earnings stock should drop for 3 trading days
+
+# def create_bodyx(ticker, date):
+#     #date = '2021-02-05'
+#     return {
+#       'summary': f'{ticker} Missed Earnings',
+#       'description': 'Three day rule',
+#       'start': {
+#         'date': date,
+#         'timeZone': 'Europe/London',
+#       },
+#       'end': {
+#         'date': date,
+#         'timeZone': 'Europe/London',
+#       },
+#       'colorId' : 8,
+#       'reminders': {
+#         'useDefault': False,
+#         'overrides': [
+#           {'method': 'email', 'minutes': 24 * 60},
+#           {'method': 'popup', 'minutes': 24 * 60},
+#           {'method': 'email', 'minutes': 48 * 60},
+#         ],
+#       },
+#     } 
+
+# timemin = datetime.now() - timedelta(days=10)
+# timemin = timemin.strftime('%Y-%m-%dT%H:%M:%S-00:00')
+# events = get_events(timeMin=timemin)
+
+# for ticker in list(portfolio['YF_TICKER']):
+
+# #for ticker in ['TSLA', 'AAPL', 'MTCH', 'MPW']:
+#     #print(ticker)
+#     a = yec.get_earnings_of(ticker)
+#     counter = 0
+#     num = len(events['items'])
+    
+#     if a:
+    
+#         for x in a:
+#             if x['epsactual'] is not None:
+#                 break
+                
+#         if x['epsactual'] is None or x['epsestimate'] is None:
+#             continue
+#         elif x['epsactual'] < x['epsestimate']:
+#             #print(f"{x['ticker']} missed earnings {parser.parse(x['startdatetime']).strftime('%Y-%m-%d')}")
+#             # x['startdatetime']
+#             # x['timeZoneShortName']
+            
+#             for event in events['items']:
+#                 #print(event['summary'])
+#                 if event['summary'] == f'{ticker} Missed Earnings':
+#                     #print(f"{ticker} event already exists")
+#                     break
+#                 else:
+#                     counter += 1
+#                     #print('Do Nothing')
+            
+#             if counter == num:
+                
+#                 utc=pytz.UTC
+#                 #TODO: may need to change this line as 'startdatetime' wouldn't be a day in the future
+#                 q = datetime.now() - timedelta(days=7) 
+#                 if parser.parse(x['startdatetime']).replace(tzinfo=utc) > q.replace(tzinfo=utc):
+                
+#                     date = parser.parse(x['startdatetime']) + timedelta(days=3) 
+#                     date = date.strftime('%Y-%m-%d')
+                    
+#                     # Create new event
+#                     response = service.events().insert(
+#                         calendarId=calendar_id_stocks,
+#                         sendNotifications=True,
+#                         sendUpdates='none',
+#                         body=create_bodyx(ticker, date)
+#                     ).execute()
+#                     print(f'Creating missed earnings event {ticker}')  
 
 print('')
 sys.stdout = backup
 f.close()  
-"""
     
     
     
