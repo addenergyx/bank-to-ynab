@@ -6,23 +6,12 @@ Created on Fri Feb 19 17:52:14 2021
 """
 
 import os
-import pandas as pd
 from dotenv import load_dotenv
-from pandas_datareader import data as web
 import yfinance as yf
-from datetime import datetime, timedelta, time
-import plotly.express as px
-from plotly.offline import plot
-import plotly.graph_objects as go
-from pytrends.request import TrendReq
+from datetime import datetime, time
 from sqlalchemy import create_engine
-from pytrends import dailydata
-from helpers import get_buy_sell, get_yf_symbol, time_frame_returns
-from forex_python.converter import CurrencyRates
-from plotly.subplots import make_subplots
 from iexfinance.stocks import Stock
 from scraper import getPremarketChange, get_driver
-from fake_useragent import UserAgent
 from helpers import get_holdings
 import time as t
 import schedule
