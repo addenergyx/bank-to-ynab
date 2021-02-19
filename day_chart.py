@@ -4,7 +4,7 @@ Created on Fri Feb 19 17:52:14 2021
 
 @author: david
 """
-
+import pandas as pd
 import os
 from dotenv import load_dotenv
 import yfinance as yf
@@ -12,7 +12,6 @@ from datetime import datetime, time
 from sqlalchemy import create_engine
 from iexfinance.stocks import Stock
 from scraper import getPremarketChange, get_driver
-from helpers import get_holdings
 import time as t
 import schedule
 
@@ -21,10 +20,19 @@ load_dotenv(verbose=True, override=True)
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
 
+def get_holdings():
+    holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+      
+    # Recent ticker change due to merger, Yahoo finance pulls wrong data, should be fixed later
+    #holdings = holdings[holdings['Ticker'] != 'UWMC']
+    
+    holdings['PREV_CLOSE'] = holdings['PREV_CLOSE'].astype('float')
+    return holdings
+
 def day_chart():
         
-    # print('start')
-    start_time = t.time()
+#    print('start')
+#    start_time = t.time()
     
     if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
         driver = get_driver(
@@ -93,21 +101,21 @@ def day_chart():
     
     holdings.to_sql('day_chart', engine, if_exists='replace')
     
-    end_time = t.time()
-    # print(end_time-start_time)
-    # print('end')
+#    end_time = t.time()
+#    print(end_time-start_time)
+#    print('end')
 
-def job():
-    day_chart()
-                
-schedule.every(30).seconds.do(job)
-
-while True:
-    if datetime.now().time() < time(hour=19, minute=8):
-        schedule.run_pending()
-        t.sleep(1)
-    else:
-        break
+#def job():
+#    day_chart()
+#                
+#schedule.every(30).seconds.do(job)
+#
+#while True:
+#    if datetime.now().time() < time(hour=20, minute=40):
+#        schedule.run_pending()
+#        t.sleep(1)
+#    else:
+#        break
     
     
     

@@ -12,19 +12,26 @@ from datetime import datetime, time
 from sqlalchemy import create_engine
 from iexfinance.stocks import Stock
 from scraper import getPremarketChange, get_driver
-import time as t
-import schedule
-from helpers import get_holdings
+#import time as t
+#import schedule
+import pandas as pd
 
 load_dotenv(verbose=True, override=True)
 
 db_URI = os.getenv('AWS_DATABASE_URL')
 engine = create_engine(db_URI)
 
+def get_holdings():
+    holdings = pd.read_sql_table("portfolio", con=engine, index_col='index')
+      
+    # Recent ticker change due to merger, Yahoo finance pulls wrong data, should be fixed later
+    #holdings = holdings[holdings['Ticker'] != 'UWMC']
+    
+    holdings['PREV_CLOSE'] = holdings['PREV_CLOSE'].astype('float')
+    return holdings
+
 def return_map():
-    
-    print('running')
-    
+        
     if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
         driver = get_driver(#
             headless=True
@@ -91,17 +98,17 @@ def return_map():
     print('done')
     
 
-def job():
-    return_map()    
-                
-schedule.every(30).seconds.do(job)
-
-while True:
-    if datetime.now().time() < time(hour=19, minute=8):
-        schedule.run_pending()
-        t.sleep(1)
-    else:
-        break
+#def job():
+#    return_map()    
+#                
+#schedule.every(30).seconds.do(job)
+#
+#while True:
+#    if datetime.now().time() < time(hour=19, minute=8):
+#        schedule.run_pending()
+#        t.sleep(1)
+#    else:
+#        break
 
 
 
