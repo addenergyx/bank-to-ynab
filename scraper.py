@@ -15,10 +15,14 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from random import randrange
 
 load_dotenv(verbose=True, override=True)
 
-def get_driver(headless=False):
+def get_driver(headless=False, proxy=False):
     
     options = Options()
     ua = UserAgent()
@@ -31,6 +35,16 @@ def get_driver(headless=False):
     #options.add_argument("--headless") 
     if headless:    
         options.add_argument('--headless')
+        
+    # Full screen
+    options.add_argument("--start-maximized")
+
+    # Proxy to avoid 403 forbidden error
+    if proxy:
+        prox = proxies[randrange(len(proxies))]
+        print(prox)
+        print('--------------------------------')
+        options.add_argument('--proxy-server={}'.format(prox))
 
     WORKING_ENV = os.getenv('WORKING_ENV', 'development')
         
@@ -49,7 +63,39 @@ def get_driver(headless=False):
         # https://stackoverflow.com/questions/23908319/run-selenium-with-crontab-python
         return webdriver.Chrome('/usr/lib/chromium-browser/chromedriver', options=options) 
 
-# driver = get_driver(headless=True)
+driver = get_driver()
+driver.get("https://sslproxies.org/")
+driver.execute_script("return arguments[0].scrollIntoView(true);", WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, "//table[@class='table table-striped table-bordered dataTable']//th[contains(., 'IP Address')]"))))
+ips = [my_elem.get_attribute("innerHTML") for my_elem in WebDriverWait(driver, 5).until(EC.visibility_of_all_elements_located((By.XPATH, "//table[@class='table table-striped table-bordered dataTable']//tbody//tr[@role='row']/td[position() = 1]")))]
+ports = [my_elem.get_attribute("innerHTML") for my_elem in WebDriverWait(driver, 5).until(EC.visibility_of_all_elements_located((By.XPATH, "//table[@class='table table-striped table-bordered dataTable']//tbody//tr[@role='row']/td[position() = 2]")))]
+driver.quit()
+proxies = [ips[i]+':'+ports[i] for i in range(0, len(ips))]
+
+#get_driver(proxy=True)
+
+#proxy = proxies[randrange(len(proxies))]
+
+# def get_proxies():
+    
+#     driver = get_driver()
+#    driver.get("https://sslproxies.org/")
+#     driver.execute_script("return arguments[0].scrollIntoView(true);", WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, "//table[@class='table table-striped table-bordered dataTable']//th[contains(., 'IP Address')]"))))
+#     ips = [my_elem.get_attribute("innerHTML") for my_elem in WebDriverWait(driver, 5).until(EC.visibility_of_all_elements_located((By.XPATH, "//table[@class='table table-striped table-bordered dataTable']//tbody//tr[@role='row']/td[position() = 1]")))]
+#     ports = [my_elem.get_attribute("innerHTML") for my_elem in WebDriverWait(driver, 5).until(EC.visibility_of_all_elements_located((By.XPATH, "//table[@class='table table-striped table-bordered dataTable']//tbody//tr[@role='row']/td[position() = 2]")))]
+#     driver.quit()
+    
+#     proxies = [ips[i]+':'+ports[i] for i in range(0, len(ips))]
+     
+#     proxy = proxies[randrange(len(proxies))]
+    
+#     # proxies = s)
+#     []
+#     # for i in range(0, len(ips)):
+#     #     proxies.append(ips[i]+':'+ports[i])
+#     # print(proxie
+#     return proxy
+
+# driver = get_driver()
 # driver.implicitly_wait(20)
 def getPremarketChange(ticker, driver):
 
@@ -78,7 +124,7 @@ def getPremarketChange(ticker, driver):
 
 # start = time.time()
 # for ticker in ['tsla','aapl','fb']:
-#     getPremarketChange(ticker, get_driver())
+#     getPremarketChange(ticker, driver)
 # end = time.time()
 # print(end - start)
 # driver.close()
