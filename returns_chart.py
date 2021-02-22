@@ -97,6 +97,7 @@ def return_map():
     holdings.to_sql('returns_chart', engine, if_exists='replace')
     print('done')
     
+return_map()
 
 #def job():
 #    return_map()    

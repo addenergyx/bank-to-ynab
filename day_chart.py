@@ -100,7 +100,9 @@ def day_chart():
     holdings = holdings[holdings['Ticker'] != '3CRM']
     
     holdings.to_sql('day_chart', engine, if_exists='replace')
-    
+  
+day_chart()
+
 #    end_time = t.time()
 #    print(end_time-start_time)
 #    print('end')
