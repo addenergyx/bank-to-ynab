@@ -170,7 +170,8 @@ for d in complete_df['Date'].unique():
 
 complete_df = comp.copy()
 complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
-#complete_df.to_csv(f'leaderboard-{timestamp}.csv', index=False)
+
+complete_df.to_csv(f'leaderboard-{timestamp}.csv', index=False)
 
 complete_df.to_sql('leaderboard', engine, if_exists='replace')
 
@@ -248,7 +249,7 @@ def user_data(xpath, file, historical_df):
     
     #complete_df['User_change'] = complete_df['User_change'] * -1
     complete_df['Date'] = complete_df['Date'].dt.strftime('%d/%m/%Y')
-    #complete_df.to_csv(file, index=False)
+    complete_df.to_csv(file, index=False)
     
     upload_to_google_drive(file)
 
