@@ -33,7 +33,7 @@ def get_holdings():
 def return_map():
        
     def uk_current_price(r):
-        print(r['YF_TICKER'])
+        #print(r['YF_TICKER'])
         if r['YF_TICKER'].find('.L') != -1:
             r['CURRENT_PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m', progress=False)['Close'].values[0]
             return r
@@ -44,7 +44,7 @@ def return_map():
     if time(hour=8, minute=59) > datetime.now().time():
         holdings = pd.read_sql_table("returns_chart", con=engine, index_col='index')
         holdings = holdings.apply(uk_current_price, axis=1)
-        print('done')
+        #print('done')
         return holdings.to_sql('returns_chart', engine, if_exists='replace')
     
     if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
