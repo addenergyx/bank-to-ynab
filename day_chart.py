@@ -34,7 +34,22 @@ def day_chart():
 #    print('start')
 #    start_time = t.time()
     
-    if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
+    def uk_current_price(r):
+        print(r['YF_TICKER'])
+        if r['YF_TICKER'].find('.L') != -1:
+            r['CURRENT_PRICE'] = yf.download(tickers=r['YF_TICKER'], period='1m', progress=False)['Close'].values[0]
+            return r
+        else:
+            return r
+        
+    # Before 9am do nothing, should use after hours 
+    if time(hour=8, minute=59) > datetime.now().time():
+        holdings = pd.read_sql_table("day_chart", con=engine, index_col='index')
+        holdings = holdings.apply(uk_current_price, axis=1)
+        print('done')
+        return holdings.to_sql('day_chart', engine, if_exists='replace')
+    
+    if time(hour=9) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22, minute=30):
         driver = get_driver(
             headless=True
             #proxy=True
@@ -42,7 +57,7 @@ def day_chart():
     
     def current_price(r):
         #print(r['YF_TICKER'])
-        if time(hour=9, minute=0) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22):
+        if time(hour=9) < datetime.now().time() < time(hour=14, minute=30) or time(hour=21) < datetime.now().time() < time(hour=22, minute=30):
             if r['YF_TICKER'].find('.') == -1:
                 try:
                     # Use IEX, only works with US (NYSE) Stocks
