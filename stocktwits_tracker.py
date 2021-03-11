@@ -45,7 +45,9 @@ trades = pd.read_sql_table("trades", con=engine, index_col='index', parse_dates=
 
 tickers = trades['Ticker Symbol'].drop_duplicates().tolist()
 
-leaderboard = pd.read_sql_table("stocktwits", con=engine, index_col='index', parse_dates=['Date'])
+leaderboard = pd.read_sql_table("stocktwits", con=engine, index_col='index')
+
+leaderboard['Date'] = pd.to_datetime(leaderboard['Date'], dayfirst=True)
 
 columns = ['Stock', 'Date', 'Watchers']
 
@@ -100,6 +102,9 @@ df['Date'] = pd.to_datetime(df['Date'], dayfirst=True)
 complete_df = df.sort_values(['Stock', 'Date'], ascending=True).drop_duplicates(['Stock','Date'], keep='first')
 
 complete_df['Watchers'] = complete_df['Watchers'].astype(int)
+
+# Use when fixing data
+#complete_df = pd.read_csv('stocktwits.csv')
 
 complete_df.to_sql('stocktwits', engine, if_exists='replace')
 
